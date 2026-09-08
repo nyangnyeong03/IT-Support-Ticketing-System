@@ -33,7 +33,7 @@ function App() {
 
         try {
             const response = await fetch(
-                "http://localhost:5000/api/auth/login",
+                "https://it-support-ticketing-system.onrender.com/api/auth/login",
                 {
                     method: "POST",
 
@@ -787,7 +787,7 @@ function App() {
 
                                         const response =
                                             await fetch(
-                                                "http://localhost:5000/api/tickets",
+                                                "https://it-support-ticketing-system.onrender.com/api/tickets",
                                                 {
                                                     method: "POST",
 

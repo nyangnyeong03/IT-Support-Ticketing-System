@@ -16,7 +16,7 @@ function StaffDashboard({ user, onLogout }) {
             const token = localStorage.getItem("token");
 
             const response = await fetch(
-                "http://localhost:5000/api/tickets",
+                "https://it-support-ticketing-system.onrender.com/api/tickets",
                 {
                     headers: {
                         Authorization: `Bearer ${token}`
