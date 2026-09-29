@@ -707,7 +707,7 @@ function StaffDashboard({ user, onLogout }) {
                     <div>
 
                         <h2>
-                            IT Support
+                            FaultLiNE
                         </h2>
 
                         <p>

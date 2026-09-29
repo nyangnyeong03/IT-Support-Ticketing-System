@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 import StaffDashboard from "./StaffDashboard";
 
@@ -20,6 +20,62 @@ function App() {
 
     const [ticketMessage, setTicketMessage] = useState("");
     const [submitting, setSubmitting] = useState(false);
+
+const [tickets, setTickets] = useState([]);
+const [loadingTickets, setLoadingTickets] = useState(false);
+
+// ========================================
+// LOAD MY TICKETS
+// ========================================
+
+useEffect(() => {
+    if (!user) {
+        return;
+    }
+
+    const loadTickets = async () => {
+        setLoadingTickets(true);
+
+        try {
+            const token = localStorage.getItem("token");
+
+            const response = await fetch(
+                "https://it-support-ticketing-system.onrender.com/api/tickets/my-tickets",
+                {
+                    method: "GET",
+
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                console.error(
+                    "Failed to load tickets:",
+                    data.message
+                );
+
+                return;
+            }
+
+            setTickets(data.tickets || []);
+
+        } catch (error) {
+            console.error(
+                "Load tickets error:",
+                error
+            );
+        } finally {
+            setLoadingTickets(false);
+        }
+    };
+
+    loadTickets();
+
+}, [user]);
 
 
     // ========================================
@@ -135,11 +191,11 @@ function App() {
                     <div className="login-header">
 
                         <h1>
-                            IT Support
+                            FaultLiNE
                         </h1>
 
                         <p>
-                            Ticketing and Service Management System
+                            IT Support & Ticketing
                         </p>
 
                         <span>
@@ -242,11 +298,11 @@ function App() {
                     <div>
 
                         <h2>
-                            IT Support
+                           FaultLiNE
                         </h2>
 
                         <p>
-                            Ticketing System
+                            IT Support & Ticketing
                         </p>
 
                     </div>
@@ -490,7 +546,7 @@ function App() {
                                     </p>
 
                                     <h2>
-                                        1
+                                        {tickets.length}
                                     </h2>
 
                                 </div>
@@ -511,7 +567,9 @@ function App() {
                                     </p>
 
                                     <h2>
-                                        1
+                                        {tickets.filter(
+        (ticket) => ticket.status === "Pending"
+    ).length}
                                     </h2>
 
                                 </div>
@@ -532,7 +590,9 @@ function App() {
                                     </p>
 
                                     <h2>
-                                        0
+                                        {tickets.filter(
+    (ticket) => ticket.status === "In Progress"
+).length}
                                     </h2>
 
                                 </div>
@@ -553,7 +613,9 @@ function App() {
                                     </p>
 
                                     <h2>
-                                        0
+                                        {tickets.filter(
+    (ticket) => ticket.status === "Resolved"
+).length}
                                     </h2>
 
                                 </div>
@@ -711,24 +773,47 @@ function App() {
                                 </div>
 
 
-                                <div className="recent-ticket">
+                                                              <div className="recent-ticket">
 
-                                    <div>
+                                    {tickets.length > 0 ? (
 
-                                        <strong>
-                                            Computer not turning on
-                                        </strong>
+                                        <>
+                                            <div>
 
-                                        <span>
-                                            Hardware • High Priority
-                                        </span>
+                                                <strong>
+                                                    {tickets[0].subject}
+                                                </strong>
 
-                                    </div>
+                                                <span>
+                                                    {tickets[0].category} • {tickets[0].priority} Priority
+                                                </span>
 
+                                            </div>
 
-                                    <span className="status pending">
-                                        Pending
-                                    </span>
+                                            <span
+                                                className={`status ${tickets[0].status
+                                                    .toLowerCase()
+                                                    .replace(" ", "-")}`}
+                                            >
+                                                {tickets[0].status}
+                                            </span>
+                                        </>
+
+                                    ) : (
+
+                                        <div>
+
+                                            <strong>
+                                                No tickets yet
+                                            </strong>
+
+                                            <span>
+                                                Your submitted tickets will appear here.
+                                            </span>
+
+                                        </div>
+
+                                    )}
 
                                 </div>
 
@@ -739,7 +824,6 @@ function App() {
                     </div>
 
                 )}
-
 
                 {/* ========================================
                     SUBMIT TICKET
@@ -1040,24 +1124,109 @@ function App() {
                             </div>
 
 
-                            <div className="empty-state">
+                           <div className="ticket-list">
 
-                                <div className="empty-icon">
-                                    T
-                                </div>
+    {loadingTickets ? (
 
-                                <h3>
-                                    My Tickets
-                                </h3>
+        <div className="empty-state">
 
-                                <p>
-                                    Ticket listing will be connected
-                                    to the API next.
-                                </p>
+            <div className="empty-icon">
+                T
+            </div>
 
-                            </div>
+            <h3>
+                Loading Tickets
+            </h3>
 
-                        </section>
+            <p>
+                Please wait while your tickets are being loaded.
+            </p>
+
+        </div>
+
+    ) : tickets.length === 0 ? (
+
+        <div className="empty-state">
+
+            <div className="empty-icon">
+                T
+            </div>
+
+            <h3>
+                No Tickets Yet
+            </h3>
+
+            <p>
+                You have not submitted any support tickets yet.
+            </p>
+
+        </div>
+
+    ) : (
+
+        tickets.map((ticket) => (
+
+            <div
+                className="ticket-item"
+                key={ticket.id}
+            >
+
+                <div className="ticket-item-header">
+
+                    <div>
+
+                        <h3>
+                            {ticket.subject}
+                        </h3>
+
+                        <p>
+                            Ticket #{ticket.id}
+                        </p>
+
+                    </div>
+
+                    <span className="ticket-status">
+                        {ticket.status}
+                    </span>
+
+                </div>
+
+
+                <div className="ticket-details">
+
+                    <span>
+                        Category: {ticket.category}
+                    </span>
+
+                    <span>
+                        Priority: {ticket.priority}
+                    </span>
+
+                </div>
+
+
+                <p className="ticket-description">
+                    {ticket.description}
+                </p>
+
+
+                <div className="ticket-date">
+
+                    Created:{" "}
+                    {new Date(
+                        ticket.created_at
+                    ).toLocaleDateString()}
+
+                </div>
+
+            </div>
+
+        ))
+
+    )}
+
+</div>
+ </section>
 
                     </div>
 
