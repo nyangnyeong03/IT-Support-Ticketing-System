@@ -774,54 +774,54 @@ useEffect(() => {
                                 </div>
 
 
-                                                             <div
-    									className="recent-ticket"
-  									  onClick={() => {
-     									   setSelectedTicket(tickets[0]);
-      									  setActivePage("tickets");
-   									 }}
-   									 style={{ cursor: "pointer" }}
-						>
+                                                           {tickets.length > 0 ? (
 
-                                        <>
-                                            <div>
+    <div
+        className="recent-ticket"
+        onClick={() => {
+            setSelectedTicket(tickets[0]);
+            setActivePage("tickets");
+        }}
+        style={{ cursor: "pointer" }}
+    >
 
-                                                <strong>
-                                                    {tickets[0].subject}
-                                                </strong>
+        <div>
 
-                                                <span>
-                                                    {tickets[0].category} • {tickets[0].priority} Priority
-                                                </span>
+            <strong>
+                {tickets[0].subject}
+            </strong>
 
-                                            </div>
+            <span>
+                {tickets[0].category} • {tickets[0].priority} Priority
+            </span>
 
-                                            <span
-                                                className={`status ${tickets[0].status
-                                                    .toLowerCase()
-                                                    .replace(" ", "-")}`}
-                                            >
-                                                {tickets[0].status}
-                                            </span>
-                                        </>
+        </div>
 
-                                    ) : (
+        <span
+            className={`status ${tickets[0].status
+                .toLowerCase()
+                .replace(" ", "-")}`}
+        >
+            {tickets[0].status}
+        </span>
 
-                                        <div>
+    </div>
 
-                                            <strong>
-                                                No tickets yet
-                                            </strong>
+) : (
 
-                                            <span>
-                                                Your submitted tickets will appear here.
-                                            </span>
+    <div>
 
-                                        </div>
+        <strong>
+            No tickets yet
+        </strong>
 
-                                    )}
+        <span>
+            Your submitted tickets will appear here.
+        </span>
 
-                                </div>
+    </div>
+
+)}
 
                             </section>
 
