@@ -12,6 +12,7 @@ function App() {
     );
 
     const [activePage, setActivePage] = useState("dashboard");
+	const [selectedTicket, setSelectedTicket] = useState(null);
 
     const [subject, setSubject] = useState("");
     const [description, setDescription] = useState("");
@@ -773,9 +774,14 @@ useEffect(() => {
                                 </div>
 
 
-                                                              <div className="recent-ticket">
-
-                                    {tickets.length > 0 ? (
+                                                             <div
+    									className="recent-ticket"
+  									  onClick={() => {
+     									   setSelectedTicket(tickets[0]);
+      									  setActivePage("tickets");
+   									 }}
+   									 style={{ cursor: "pointer" }}
+						>
 
                                         <>
                                             <div>
@@ -1097,140 +1103,245 @@ useEffect(() => {
 
 
                 {/* ========================================
-                    MY TICKETS
-                ======================================== */}
+    MY TICKETS
+======================================== */}
 
-                {activePage === "tickets" && (
+{activePage === "tickets" && (
 
-                    <div className="page-content">
+    <div className="page-content">
 
-                        <section className="content-card">
+        {selectedTicket ? (
 
-                            <div className="card-header">
+            <section className="content-card">
 
-                                <div>
-
-                                    <h2>
-                                        My Tickets
-                                    </h2>
-
-                                    <p>
-                                        View and track your submitted
-                                        support tickets.
-                                    </p>
-
-                                </div>
-
-                            </div>
-
-
-                           <div className="ticket-list">
-
-    {loadingTickets ? (
-
-        <div className="empty-state">
-
-            <div className="empty-icon">
-                T
-            </div>
-
-            <h3>
-                Loading Tickets
-            </h3>
-
-            <p>
-                Please wait while your tickets are being loaded.
-            </p>
-
-        </div>
-
-    ) : tickets.length === 0 ? (
-
-        <div className="empty-state">
-
-            <div className="empty-icon">
-                T
-            </div>
-
-            <h3>
-                No Tickets Yet
-            </h3>
-
-            <p>
-                You have not submitted any support tickets yet.
-            </p>
-
-        </div>
-
-    ) : (
-
-        tickets.map((ticket) => (
-
-            <div
-                className="ticket-item"
-                key={ticket.id}
-            >
-
-                <div className="ticket-item-header">
+                <div className="card-header">
 
                     <div>
 
-                        <h3>
-                            {ticket.subject}
-                        </h3>
+                        <h2>
+                            Ticket Details
+                        </h2>
 
                         <p>
-                            Ticket #{ticket.id}
+                            View the complete information of your support ticket.
                         </p>
 
                     </div>
 
-                    <span className="ticket-status">
-                        {ticket.status}
-                    </span>
+                    <button
+                        className="view-all-button"
+                        type="button"
+                        onClick={() => setSelectedTicket(null)}
+                    >
+                        Back to My Tickets
+                    </button>
 
                 </div>
 
 
-                <div className="ticket-details">
+                <div className="ticket-details-page">
 
-                    <span>
-                        Category: {ticket.category}
-                    </span>
+                    <div className="ticket-detail-header">
 
-                    <span>
-                        Priority: {ticket.priority}
-                    </span>
+                        <div>
 
-                </div>
+                            <h2>
+                                {selectedTicket.subject}
+                            </h2>
 
+                            <p>
+                                Ticket #{selectedTicket.id}
+                            </p>
 
-                <p className="ticket-description">
-                    {ticket.description}
-                </p>
+                        </div>
 
-
-                <div className="ticket-date">
-
-                    Created:{" "}
-                    {new Date(
-                        ticket.created_at
-                    ).toLocaleDateString()}
-
-                </div>
-
-            </div>
-
-        ))
-
-    )}
-
-</div>
- </section>
+                        <span className="ticket-status">
+                            {selectedTicket.status}
+                        </span>
 
                     </div>
 
-                )}
+
+                    <div className="ticket-details">
+
+                        <span>
+                            Category: {selectedTicket.category}
+                        </span>
+
+                        <span>
+                            Priority: {selectedTicket.priority}
+                        </span>
+
+                    </div>
+
+
+                    <div className="ticket-detail-section">
+
+                        <h3>
+                            Description
+                        </h3>
+
+                        <p>
+                            {selectedTicket.description}
+                        </p>
+
+                    </div>
+
+
+                    <div className="ticket-detail-section">
+
+                        <h3>
+                            Created
+                        </h3>
+
+                        <p>
+                            {new Date(
+                                selectedTicket.created_at
+                            ).toLocaleString()}
+                        </p>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+        ) : (
+
+            <section className="content-card">
+
+                <div className="card-header">
+
+                    <div>
+
+                        <h2>
+                            My Tickets
+                        </h2>
+
+                        <p>
+                            View and track your submitted support tickets.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div className="ticket-list">
+
+                    {loadingTickets ? (
+
+                        <div className="empty-state">
+
+                            <div className="empty-icon">
+                                T
+                            </div>
+
+                            <h3>
+                                Loading Tickets
+                            </h3>
+
+                            <p>
+                                Please wait while your tickets are being loaded.
+                            </p>
+
+                        </div>
+
+                    ) : tickets.length === 0 ? (
+
+                        <div className="empty-state">
+
+                            <div className="empty-icon">
+                                T
+                            </div>
+
+                            <h3>
+                                No Tickets Yet
+                            </h3>
+
+                            <p>
+                                You have not submitted any support tickets yet.
+                            </p>
+
+                        </div>
+
+                    ) : (
+
+                        tickets.map((ticket) => (
+
+                            <button
+                                className="ticket-item"
+                                key={ticket.id}
+                                type="button"
+                                onClick={() => {
+                                    setSelectedTicket(ticket);
+                                }}
+                            >
+
+                                <div className="ticket-item-header">
+
+                                    <div>
+
+                                        <h3>
+                                            {ticket.subject}
+                                        </h3>
+
+                                        <p>
+                                            Ticket #{ticket.id}
+                                        </p>
+
+                                    </div>
+
+                                    <span className="ticket-status">
+                                        {ticket.status}
+                                    </span>
+
+                                </div>
+
+
+                                <div className="ticket-details">
+
+                                    <span>
+                                        Category: {ticket.category}
+                                    </span>
+
+                                    <span>
+                                        Priority: {ticket.priority}
+                                    </span>
+
+                                </div>
+
+
+                                <p className="ticket-description">
+                                    {ticket.description}
+                                </p>
+
+
+                                <div className="ticket-date">
+
+                                    Created:{" "}
+
+                                    {new Date(
+                                        ticket.created_at
+                                    ).toLocaleDateString()}
+
+                                </div>
+
+                            </button>
+
+                        ))
+
+                    )}
+
+                </div>
+
+            </section>
+
+        )}
+
+    </div>
+
+)}
 
 
                 {/* ========================================
