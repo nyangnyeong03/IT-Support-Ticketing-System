@@ -6,7 +6,14 @@ const db = mysql.createPool({
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
-    port: process.env.DB_PORT,
+    port: Number(process.env.DB_PORT),
+
+    ssl: {
+        rejectUnauthorized: false
+    },
+
+    multipleStatements: true,
+
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0
@@ -14,11 +21,17 @@ const db = mysql.createPool({
 
 db.getConnection((err, connection) => {
     if (err) {
-        console.error("MySQL connection failed:", err.message);
+        console.error(
+            "MySQL connection failed:",
+            err.message
+        );
         return;
     }
 
-    console.log("MySQL database connected successfully!");
+    console.log(
+        "Aiven MySQL database connected successfully!"
+    );
+
     connection.release();
 });
 

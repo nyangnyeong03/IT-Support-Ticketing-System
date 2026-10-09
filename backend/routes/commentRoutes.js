@@ -53,6 +53,7 @@ router.post("/:ticketId", authenticateToken, async (req, res) => {
 
 await logActivity(
     req.user.id,
+    ticketId,
     "ADD_COMMENT",
     `Added a comment to ticket #${ticketId}`
 );

@@ -25,6 +25,23 @@ function App() {
 const [tickets, setTickets] = useState([]);
 const [loadingTickets, setLoadingTickets] = useState(false);
 
+const [comments, setComments] = useState([]);
+const [commentText, setCommentText] = useState("");
+const [loadingComments, setLoadingComments] = useState(false);
+const [commentMessage, setCommentMessage] = useState("");
+const [sendingComment, setSendingComment] = useState(false);
+
+
+const [notifications, setNotifications] = useState([]);
+const [loadingNotifications, setLoadingNotifications] = useState(false);
+const [notificationMessage, setNotificationMessage] = useState("");
+const [markingReadId, setMarkingReadId] = useState(null);
+
+const unreadCount = notifications.filter(
+    (notification) => Number(notification.is_read) === 0
+).length;
+
+
 // ========================================
 // LOAD MY TICKETS
 // ========================================
@@ -78,10 +95,135 @@ useEffect(() => {
 
 }, [user]);
 
+// ========================================
+// LOAD COMMENTS
+// ========================================
+
+useEffect(() => {
+    if (!selectedTicket) {
+        setComments([]);
+        setCommentText("");
+        setCommentMessage("");
+        return;
+    }
+
+    loadComments(selectedTicket.id);
+
+}, [selectedTicket]);
+
 
     // ========================================
-    // LOGIN
-    // ========================================
+// COMMENTS
+// ========================================
+const loadComments = async (ticketId) => {
+    if (!ticketId) {
+        return;
+    }
+
+    setLoadingComments(true);
+    setCommentMessage("");
+
+    try {
+        const token = localStorage.getItem("token");
+
+        const response = await fetch(
+            `https://it-support-ticketing-system.onrender.com/api/comments/${ticketId}`,
+            {
+                method: "GET",
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            setCommentMessage(
+                data.message || "Failed to load comments."
+            );
+            return;
+        }
+
+        setComments(data.comments || []);
+
+    } catch (error) {
+        console.error(
+            "Load comments error:",
+            error
+        );
+
+        setCommentMessage(
+            "Cannot connect to the server."
+        );
+
+    } finally {
+        setLoadingComments(false);
+    }
+};
+
+
+const sendComment = async () => {
+    if (!selectedTicket) {
+        return;
+    }
+
+    if (!commentText.trim()) {
+        setCommentMessage(
+            "Please enter a comment."
+        );
+        return;
+    }
+
+    setSendingComment(true);
+    setCommentMessage("");
+
+    try {
+        const token = localStorage.getItem("token");
+
+        const response = await fetch(
+            `https://it-support-ticketing-system.onrender.com/api/comments/${selectedTicket.id}`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    comment: commentText.trim()
+                })
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            setCommentMessage(
+                data.message || "Failed to add comment."
+            );
+            return;
+        }
+
+        setCommentText("");
+
+        await loadComments(
+            selectedTicket.id
+        );
+
+    } catch (error) {
+        console.error(
+            "Send comment error:",
+            error
+        );
+
+        setCommentMessage(
+            "Cannot connect to the server."
+        );
+
+    } finally {
+        setSendingComment(false);
+    }
+};
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -1139,70 +1281,167 @@ useEffect(() => {
                 </div>
 
 
-                <div className="ticket-details-page">
+               <div className="ticket-details-page">
 
-                    <div className="ticket-detail-header">
+    <div className="ticket-detail-header">
 
-                        <div>
+        <div>
 
-                            <h2>
-                                {selectedTicket.subject}
-                            </h2>
+            <h2>
+                {selectedTicket.subject}
+            </h2>
 
-                            <p>
-                                Ticket #{selectedTicket.id}
-                            </p>
+            <p>
+                Ticket #{selectedTicket.id}
+            </p>
+
+        </div>
+
+        <span className="ticket-status">
+            {selectedTicket.status}
+        </span>
+
+    </div>
+
+
+    <div className="ticket-details">
+
+        <span>
+            Category: {selectedTicket.category}
+        </span>
+
+        <span>
+            Priority: {selectedTicket.priority}
+        </span>
+
+    </div>
+
+
+    <div className="ticket-detail-section">
+
+        <h3>
+            Description
+        </h3>
+
+        <p>
+            {selectedTicket.description}
+        </p>
+
+    </div>
+
+
+    <div className="ticket-detail-section">
+
+        <h3>
+            Created
+        </h3>
+
+        <p>
+            {new Date(
+                selectedTicket.created_at
+            ).toLocaleString()}
+        </p>
+
+    </div>
+
+
+    <div className="ticket-detail-section">
+
+        <h3>
+            Comments
+        </h3>
+
+        {loadingComments ? (
+
+            <p>
+                Loading comments...
+            </p>
+
+        ) : comments.length === 0 ? (
+
+            <p>
+                No comments yet.
+            </p>
+
+        ) : (
+
+            <div className="comments-list">
+
+                {comments.map((comment) => (
+
+                    <div
+                        className="comment-item"
+                        key={comment.id}
+                    >
+
+                        <div className="comment-header">
+
+                            <strong>
+                                {comment.full_name}
+                            </strong>
+
+                            <span>
+                                {comment.role}
+                            </span>
 
                         </div>
 
-                        <span className="ticket-status">
-                            {selectedTicket.status}
-                        </span>
-
-                    </div>
-
-
-                    <div className="ticket-details">
-
-                        <span>
-                            Category: {selectedTicket.category}
-                        </span>
-
-                        <span>
-                            Priority: {selectedTicket.priority}
-                        </span>
-
-                    </div>
-
-
-                    <div className="ticket-detail-section">
-
-                        <h3>
-                            Description
-                        </h3>
-
                         <p>
-                            {selectedTicket.description}
+                            {comment.comment}
                         </p>
 
-                    </div>
-
-
-                    <div className="ticket-detail-section">
-
-                        <h3>
-                            Created
-                        </h3>
-
-                        <p>
+                        <small>
                             {new Date(
-                                selectedTicket.created_at
+                                comment.created_at
                             ).toLocaleString()}
-                        </p>
+                        </small>
 
                     </div>
 
-                </div>
+                ))}
+
+            </div>
+
+        )}
+
+        <div className="comment-form">
+
+            <textarea
+                placeholder="Write a comment..."
+                value={commentText}
+                onChange={(e) =>
+                    setCommentText(
+                        e.target.value
+                    )
+                }
+                rows="4"
+            />
+
+            <button
+                className="submit-button"
+                type="button"
+                onClick={sendComment}
+                disabled={sendingComment}
+            >
+                {sendingComment
+                    ? "Sending..."
+                    : "Send Comment"}
+            </button>
+
+        </div>
+
+
+        {commentMessage && (
+
+            <div className="message">
+                {commentMessage}
+            </div>
+
+        )}
+
+    </div>
+
+</div>
 
             </section>
 
@@ -1344,54 +1583,109 @@ useEffect(() => {
 )}
 
 
-                {/* ========================================
-                    NOTIFICATIONS
-                ======================================== */}
 
-                {activePage === "notifications" && (
+{/* ========================================
+    NOTIFICATIONS
+======================================== */}
 
-                    <div className="page-content">
+{activePage === "notifications" && (
+    <div className="page-content">
+        <section className="content-card">
+            <div className="card-header">
+                <div>
+                    <h2>Notifications</h2>
+                    <p>
+                        You have {unreadCount} unread notification(s).
+                    </p>
+                </div>
 
-                        <section className="content-card">
+                <button
+                    type="button"
+                    className="quick-action"
+                    onClick={loadNotifications}
+                    disabled={loadingNotifications}
+                >
+                    {loadingNotifications ? "Loading..." : "Refresh"}
+                </button>
+            </div>
 
-                            <div className="card-header">
+            {notificationMessage && (
+                <div className="message" role="alert">
+                    {notificationMessage}
+                </div>
+            )}
 
-                                <div>
+            {loadingNotifications && notifications.length === 0 ? (
+                <div className="empty-state">
+                    <h3>Loading Notifications...</h3>
+                    <p>Please wait.</p>
+                </div>
+            ) : notifications.length === 0 ? (
+                <div className="empty-state">
+                    <div className="empty-icon">N</div>
+                    <h3>No Notifications</h3>
+                    <p>
+                        Notifications will appear here when available.
+                    </p>
+                </div>
+            ) : (
+                <div className="notification-list">
+                    {notifications.map((notification) => (
+                        <article
+                            key={notification.id}
+                            className="content-card"
+                            style={{
+                                marginBottom: "12px",
+                                borderLeft:
+                                    Number(notification.is_read) === 0
+                                        ? "4px solid #2563eb"
+                                        : "4px solid #d1d5db",
+                                opacity:
+                                    Number(notification.is_read) === 1
+                                        ? 0.75
+                                        : 1
+                            }}
+                        >
+                            <p>{notification.message}</p>
 
-                                    <h2>
-                                        Notifications
-                                    </h2>
+                            <small>
+                                {notification.created_at
+                                    ? new Date(
+                                          notification.created_at
+                                      ).toLocaleString()
+                                    : ""}
+                            </small>
 
-                                    <p>
-                                        View updates about your tickets.
-                                    </p>
-
-                                </div>
-
+                            <div style={{ marginTop: "12px" }}>
+                                {Number(notification.is_read) === 0 ? (
+                                    <button
+                                        type="button"
+                                        className="quick-action"
+                                        disabled={
+                                            markingReadId === notification.id
+                                        }
+                                        onClick={() =>
+                                            markNotificationAsRead(
+                                                notification.id
+                                            )
+                                        }
+                                    >
+                                        {markingReadId === notification.id
+                                            ? "Saving..."
+                                            : "Mark as Read"}
+                                    </button>
+                                ) : (
+                                    <span>✓ Read</span>
+                                )}
                             </div>
+                        </article>
+                    ))}
+                </div>
+            )}
+        </section>
+    </div>
+)}
 
-
-                            <div className="empty-state">
-
-                                <div className="empty-icon">
-                                    N
-                                </div>
-
-                                <h3>
-                                    No Notifications
-                                </h3>
-
-                                <p>
-                                    Notifications will appear here.
-                                </p>
-
-                            </div>
-
-                        </section>
-
-                    </div>
-
-                )}
 
 
                 {/* ========================================

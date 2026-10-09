@@ -2,6 +2,7 @@ const express = require("express");
 const db = require("../db");
 const authenticateToken = require("../middleware/authMiddleware");
 const authorizeRoles = require("../middleware/roleMiddleware");
+const logActivity = require("../activityLogger");
 
 const router = express.Router();
 
@@ -55,17 +56,24 @@ router.post("/", authenticateToken, async (req, res) => {
         }
 
         const [result] = await db.promise().query(
-            `INSERT INTO tickets
-            (user_id, subject, description, category, priority)
-            VALUES (?, ?, ?, ?, ?)`,
-            [
-                req.user.id,
-                subject,
-                description,
-                category,
-                ticketPriority
-            ]
-        );
+    `INSERT INTO tickets
+     (user_id, subject, description, category, priority)
+     VALUES (?, ?, ?, ?, ?)`,
+    [
+        req.user.id,
+        subject,
+        description,
+        category,
+        ticketPriority
+    ]
+);
+
+await logActivity(
+    req.user.id,
+    result.insertId,
+    "CREATE_TICKET",
+    `Created ticket #${result.insertId}`
+);
 
         res.status(201).json({
             message: "Ticket created successfully!",
@@ -206,6 +214,69 @@ router.get(
 
 
 // ======================================================
+// GET TICKET DETAILS
+// ======================================================
+
+router.get("/:id", authenticateToken, async (req, res) => {
+    try {
+        const ticketId = req.params.id;
+
+        const [tickets] = await db.promise().query(
+            `SELECT
+                t.id,
+                t.user_id,
+                t.subject,
+                t.description,
+                t.category,
+                t.priority,
+                t.status,
+                t.assigned_to,
+                t.resolution,
+                t.created_at,
+                t.updated_at,
+                u.full_name AS submitted_by,
+                u.email AS submitted_by_email
+             FROM tickets t
+             INNER JOIN users u
+                ON t.user_id = u.id
+             WHERE t.id = ?`,
+            [ticketId]
+        );
+
+        if (tickets.length === 0) {
+            return res.status(404).json({
+                message: "Ticket not found."
+            });
+        }
+
+        const ticket = tickets[0];
+
+        // Regular user can only view their own ticket
+        if (
+            req.user.role === "user" &&
+            ticket.user_id !== req.user.id
+        ) {
+            return res.status(403).json({
+                message: "Access denied."
+            });
+        }
+
+        res.json({
+            message: "Ticket retrieved successfully!",
+            ticket: ticket
+        });
+
+    } catch (error) {
+        console.error("Get ticket details error:", error);
+
+        res.status(500).json({
+            message: "Server error."
+        });
+    }
+});
+
+
+// ======================================================
 // ASSIGN TICKET
 // ======================================================
 
@@ -258,7 +329,12 @@ router.put(
                  WHERE id = ?`,
                 [assigned_to, ticketId]
             );
-
+await logActivity(
+    req.user.id,
+    ticketId,
+    "ASSIGN_TICKET",
+    `Assigned ticket #${ticketId} to IT staff #${assigned_to}`
+);
             res.json({
                 message: "Ticket assigned successfully!",
                 ticket_id: Number(ticketId),
@@ -289,7 +365,6 @@ router.put(
             const ticketId = req.params.id;
             const { status, resolution } = req.body;
 
-            // Allowed ticket statuses
             const allowedStatuses = [
                 "Pending",
                 "In Progress",
@@ -297,23 +372,24 @@ router.put(
                 "Closed"
             ];
 
-            // Check if status was provided
             if (!status) {
                 return res.status(400).json({
                     message: "Status is required."
                 });
             }
 
-            // Check if status is valid
             if (!allowedStatuses.includes(status)) {
                 return res.status(400).json({
                     message: "Invalid ticket status."
                 });
             }
 
-            // Check if ticket exists
+            // Get current ticket information
             const [tickets] = await db.promise().query(
-                `SELECT id
+                `SELECT
+                    id,
+                    status,
+                    resolution
                  FROM tickets
                  WHERE id = ?`,
                 [ticketId]
@@ -325,14 +401,22 @@ router.put(
                 });
             }
 
-            // Resolution is required when ticket is Resolved
+            const currentTicket = tickets[0];
+
+            // Resolution is required when resolving
             if (status === "Resolved" && !resolution) {
                 return res.status(400).json({
                     message: "Resolution is required when resolving a ticket."
                 });
             }
 
-            // Update status and resolution
+            // Keep existing resolution if no new resolution is provided
+            let newResolution = currentTicket.resolution;
+
+            if (resolution) {
+                newResolution = resolution;
+            }
+
             await db.promise().query(
                 `UPDATE tickets
                  SET status = ?,
@@ -340,16 +424,21 @@ router.put(
                  WHERE id = ?`,
                 [
                     status,
-                    resolution || null,
+                    newResolution,
                     ticketId
                 ]
             );
-
+await logActivity(
+    req.user.id,
+    ticketId,
+    "UPDATE_STATUS",
+    `Updated ticket #${ticketId} status to ${status}`
+);
             res.json({
                 message: "Ticket status updated successfully!",
                 ticket_id: Number(ticketId),
                 status: status,
-                resolution: resolution || null
+                resolution: newResolution
             });
 
         } catch (error) {
@@ -363,4 +452,64 @@ router.put(
 );
 
 
+// ======================================================
+// EXPORT ROUTER
+// ======================================================
+
+router.get("/:ticketId/activity", authenticateToken, async (req, res) => {
+    try {
+        const ticketId = req.params.ticketId;
+        const userId = req.user.id;
+
+        const [tickets] = await db.promise().query(
+            `SELECT id, user_id
+             FROM tickets
+             WHERE id = ?`,
+            [ticketId]
+        );
+
+        if (tickets.length === 0) {
+            return res.status(404).json({
+                message: "Ticket not found."
+            });
+        }
+
+        const ticket = tickets[0];
+
+        if (req.user.role === "user" && ticket.user_id !== userId) {
+            return res.status(403).json({
+                message: "You can only view activity history of your own tickets."
+            });
+        }
+
+        const [activities] = await db.promise().query(
+            `SELECT
+                al.id,
+                al.ticket_id,
+                al.action,
+                al.description,
+                al.created_at,
+                u.full_name,
+                u.role
+             FROM activity_logs al
+             INNER JOIN users u ON al.user_id = u.id
+             WHERE al.ticket_id = ?
+             ORDER BY al.created_at ASC`,
+            [ticketId]
+        );
+
+        res.json({
+            message: "Activity history retrieved successfully!",
+            activities: activities
+        });
+
+    } catch (error) {
+        console.error("GET ACTIVITY HISTORY ERROR:", error);
+
+        res.status(500).json({
+            message: "Failed to retrieve activity history.",
+            error: error.message
+        });
+    }
+});
 module.exports = router;
