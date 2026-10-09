@@ -305,19 +305,19 @@ const sendComment = async () => {
     // ========================================
 
     if (
-        user &&
-        (
-            user.role === "admin" ||
-            user.role === "it_staff"
-        )
-    ) {
-        return (
-            <StaffDashboard
-                user={user}
-                onLogout={handleLogout}
-            />
-        );
-    }
+    user &&
+    (
+        user.role === "admin" ||
+        user.role === "it_staff"
+    )
+) {
+    return (
+        <StaffDashboard
+            user={user}
+            onLogout={handleLogout}
+        />
+    );
+}
 
 
     // ========================================

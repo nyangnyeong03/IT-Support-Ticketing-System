@@ -1,22 +1,47 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 const db = require("../db");
 const authenticateToken = require("../middleware/authMiddleware");
 const authorizeRoles = require("../middleware/roleMiddleware");
+const { sendOtpEmail } = require("../emailService");
 
 const router = express.Router();
 
+const normalizeEmail = (email) =>
+    String(email || "").trim().toLowerCase();
+
+const createOtp = () =>
+    String(crypto.randomInt(100000, 1000000));
+
+const hashOtp = (otp) =>
+    crypto.createHash("sha256").update(otp).digest("hex");
+
 // ========================================
-// REGISTER
+// REGISTER + SEND EMAIL OTP
 // ========================================
 router.post("/register", async (req, res) => {
     try {
-        const { full_name, email, password } = req.body;
+        const fullName = String(req.body.full_name || "").trim();
+        const email = normalizeEmail(req.body.email);
+        const password = String(req.body.password || "");
 
-        if (!full_name || !email || !password) {
+        if (!fullName || !email || !password) {
             return res.status(400).json({
                 message: "All fields are required."
+            });
+        }
+
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return res.status(400).json({
+                message: "Please enter a valid email address."
+            });
+        }
+
+        if (password.length < 8) {
+            return res.status(400).json({
+                message: "Password must be at least 8 characters."
             });
         }
 
@@ -27,28 +52,225 @@ router.post("/register", async (req, res) => {
 
         if (existingUsers.length > 0) {
             return res.status(409).json({
-                message: "Email already exists."
+                message: "Email already exists. Please log in or use another email."
             });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
         const [result] = await db.promise().query(
-            `INSERT INTO users (full_name, email, password, role)
-             VALUES (?, ?, ?, 'user')`,
-            [full_name, email, hashedPassword]
+            `INSERT INTO users
+                (full_name, email, password, role, email_verified)
+             VALUES (?, ?, ?, 'user', 0)`,
+            [fullName, email, hashedPassword]
         );
 
-        res.status(201).json({
-            message: "Registration successful!",
-            user_id: result.insertId
-        });
+        const userId = result.insertId;
+        const otp = createOtp();
+        const otpHash = hashOtp(otp);
 
+        await db.promise().query(
+            `INSERT INTO email_otps
+                (user_id, otp_hash, expires_at, attempts)
+             VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 10 MINUTE), 0)`,
+            [userId, otpHash]
+        );
+
+        try {
+            await sendOtpEmail(email, otp);
+
+            return res.status(201).json({
+                message: "Account created. Check your email for the verification code.",
+                user_id: userId,
+                email: email,
+                requires_verification: true
+            });
+        } catch (emailError) {
+            console.error("OTP email sending error:", emailError.message);
+
+            return res.status(502).json({
+                message: "Account created, but the OTP email could not be sent. Please use the resend OTP option.",
+                user_id: userId,
+                email: email,
+                requires_verification: true
+            });
+        }
     } catch (error) {
         console.error("Registration error:", error);
 
-        res.status(500).json({
-            message: "Server error."
+        return res.status(500).json({
+            message: "Registration failed due to a server error."
+        });
+    }
+});
+
+// ========================================
+// VERIFY EMAIL OTP
+// ========================================
+router.post("/verify-email", async (req, res) => {
+    try {
+        const email = normalizeEmail(req.body.email);
+        const otp = String(req.body.otp || "").trim();
+
+        if (!email || !/^\d{6}$/.test(otp)) {
+            return res.status(400).json({
+                message: "Enter your email and the 6-digit verification code."
+            });
+        }
+
+        const [users] = await db.promise().query(
+            "SELECT id, email_verified FROM users WHERE email = ?",
+            [email]
+        );
+
+        if (users.length === 0) {
+            return res.status(404).json({
+                message: "Account not found."
+            });
+        }
+
+        const user = users[0];
+
+        if (Number(user.email_verified) === 1) {
+            return res.json({
+                message: "Email is already verified. You can log in."
+            });
+        }
+
+        const [otpRows] = await db.promise().query(
+            `SELECT id, otp_hash, attempts,
+                    (expires_at > UTC_TIMESTAMP()) AS not_expired
+             FROM email_otps
+             WHERE user_id = ?
+             ORDER BY id DESC
+             LIMIT 1`,
+            [user.id]
+        );
+
+        if (otpRows.length === 0) {
+            return res.status(400).json({
+                message: "No verification code found. Please request a new one."
+            });
+        }
+
+        const savedOtp = otpRows[0];
+
+        if (Number(savedOtp.attempts) >= 5) {
+            return res.status(429).json({
+                message: "Too many incorrect attempts. Please request a new code."
+            });
+        }
+
+        if (!Number(savedOtp.not_expired)) {
+            return res.status(400).json({
+                message: "Verification code expired. Please request a new one."
+            });
+        }
+
+        const submittedHash = Buffer.from(hashOtp(otp), "hex");
+        const savedHash = Buffer.from(savedOtp.otp_hash, "hex");
+
+        const matches =
+            submittedHash.length === savedHash.length &&
+            crypto.timingSafeEqual(submittedHash, savedHash);
+
+        if (!matches) {
+            await db.promise().query(
+                "UPDATE email_otps SET attempts = attempts + 1 WHERE id = ?",
+                [savedOtp.id]
+            );
+
+            return res.status(400).json({
+                message: "Incorrect verification code."
+            });
+        }
+
+        await db.promise().query(
+            "UPDATE users SET email_verified = 1 WHERE id = ?",
+            [user.id]
+        );
+
+        await db.promise().query(
+            "DELETE FROM email_otps WHERE user_id = ?",
+            [user.id]
+        );
+
+        return res.json({
+            message: "Email verified successfully. You can now log in."
+        });
+    } catch (error) {
+        console.error("Email verification error:", error);
+
+        return res.status(500).json({
+            message: "Email verification failed due to a server error."
+        });
+    }
+});
+
+// ========================================
+// RESEND OTP
+// ========================================
+router.post("/resend-otp", async (req, res) => {
+    try {
+        const email = normalizeEmail(req.body.email);
+
+        if (!email) {
+            return res.status(400).json({
+                message: "Email is required."
+            });
+        }
+
+        const [users] = await db.promise().query(
+            "SELECT id, email_verified FROM users WHERE email = ?",
+            [email]
+        );
+
+        if (users.length === 0) {
+            return res.status(404).json({
+                message: "Account not found."
+            });
+        }
+
+        const user = users[0];
+
+        if (Number(user.email_verified) === 1) {
+            return res.json({
+                message: "Email is already verified. You can log in."
+            });
+        }
+
+        const otp = createOtp();
+
+        await db.promise().query(
+            "DELETE FROM email_otps WHERE user_id = ?",
+            [user.id]
+        );
+
+        await db.promise().query(
+            `INSERT INTO email_otps
+                (user_id, otp_hash, expires_at, attempts)
+             VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 10 MINUTE), 0)`,
+            [user.id, hashOtp(otp)]
+        );
+
+        try {
+            await sendOtpEmail(email, otp);
+        } catch (emailError) {
+            console.error("Resend OTP email error:", emailError.message);
+
+            return res.status(502).json({
+                message: "Could not send the email. Please try again later."
+            });
+        }
+
+        return res.json({
+            message: "A new verification code has been sent to your email."
+        });
+    } catch (error) {
+        console.error("Resend OTP error:", error);
+
+        return res.status(500).json({
+            message: "Could not resend the verification code."
         });
     }
 });
@@ -58,7 +280,8 @@ router.post("/register", async (req, res) => {
 // ========================================
 router.post("/login", async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const email = normalizeEmail(req.body.email);
+        const password = String(req.body.password || "");
 
         if (!email || !password) {
             return res.status(400).json({
@@ -79,12 +302,6 @@ router.post("/login", async (req, res) => {
 
         const user = users[0];
 
-        if (user.status !== "active") {
-            return res.status(403).json({
-                message: "Account is inactive."
-            });
-        }
-
         const passwordMatch = await bcrypt.compare(
             password,
             user.password
@@ -93,6 +310,18 @@ router.post("/login", async (req, res) => {
         if (!passwordMatch) {
             return res.status(401).json({
                 message: "Invalid email or password."
+            });
+        }
+
+        if (Number(user.email_verified) !== 1) {
+            return res.status(403).json({
+                message: "Please verify your email before logging in."
+            });
+        }
+
+        if (user.status !== "active") {
+            return res.status(403).json({
+                message: "Account is inactive."
             });
         }
 
@@ -108,7 +337,7 @@ router.post("/login", async (req, res) => {
             }
         );
 
-        res.json({
+        return res.json({
             message: "Login successful!",
             token: token,
             user: {
@@ -118,11 +347,10 @@ router.post("/login", async (req, res) => {
                 role: user.role
             }
         });
-
     } catch (error) {
         console.error("Login error:", error);
 
-        res.status(500).json({
+        return res.status(500).json({
             message: "Server error."
         });
     }
@@ -155,15 +383,14 @@ router.get("/profile", authenticateToken, async (req, res) => {
             });
         }
 
-        res.json({
+        return res.json({
             message: "Profile retrieved successfully!",
             user: users[0]
         });
-
     } catch (error) {
         console.error("Profile error:", error);
 
-        res.status(500).json({
+        return res.status(500).json({
             message: "Server error."
         });
     }
@@ -225,6 +452,12 @@ router.put("/reset-password", async (req, res) => {
             });
         }
 
+        if (String(new_password).length < 8) {
+            return res.status(400).json({
+                message: "Password must be at least 8 characters."
+            });
+        }
+
         const hashedPassword = await bcrypt.hash(
             new_password,
             10
@@ -234,7 +467,7 @@ router.put("/reset-password", async (req, res) => {
             `UPDATE users
              SET password = ?
              WHERE email = ?`,
-            [hashedPassword, email]
+            [hashedPassword, normalizeEmail(email)]
         );
 
         if (result.affectedRows === 0) {
@@ -243,14 +476,13 @@ router.put("/reset-password", async (req, res) => {
             });
         }
 
-        res.json({
+        return res.json({
             message: "Password reset successful!"
         });
-
     } catch (error) {
         console.error("Reset password error:", error);
 
-        res.status(500).json({
+        return res.status(500).json({
             message: "Server error."
         });
     }
@@ -260,4 +492,3 @@ router.put("/reset-password", async (req, res) => {
 // EXPORT ROUTER
 // ========================================
 module.exports = router;
-

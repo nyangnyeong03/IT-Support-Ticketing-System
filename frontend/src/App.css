@@ -1260,3 +1260,74 @@ button {
         gap: 7px;
     }
 }
+
+/* Recent Ticket - clean and spacious layout */
+.content-card .recent-ticket {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 22px 24px;
+    margin-top: 20px;
+    background: #ffffff;
+    border: 1px solid #e8edf3;
+    border-radius: 12px;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.content-card .recent-ticket:hover {
+    background: #f8fafc;
+    border-color: #d6deea;
+}
+
+.content-card .recent-ticket > div {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    min-width: 0;
+    flex: 1;
+}
+
+.content-card .recent-ticket strong {
+    color: #172033;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.content-card .recent-ticket > div span {
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.content-card .recent-ticket > .status {
+    flex-shrink: 0;
+    white-space: nowrap;
+    text-align: center;
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+@media (max-width: 600px) {
+    .content-card .recent-ticket {
+        align-items: flex-start;
+        gap: 14px;
+        padding: 18px 16px;
+    }
+
+    .content-card .recent-ticket strong {
+        font-size: 14px;
+    }
+
+    .content-card .recent-ticket > .status {
+        font-size: 11px;
+        padding: 6px 9px;
+    }
+}
+
