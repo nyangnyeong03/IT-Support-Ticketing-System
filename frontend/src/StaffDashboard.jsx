@@ -943,7 +943,7 @@ function StaffDashboard({ user, onLogout }) {
     );
 
     return (
-        <div className="staff-dashboard">
+        <div className="staff-layout">
             <aside className="staff-sidebar">
                 <div className="staff-sidebar-brand">
                     <h2>FaultLiNE</h2>
