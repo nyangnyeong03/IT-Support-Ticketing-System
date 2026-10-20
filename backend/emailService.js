@@ -1,37 +1,46 @@
 
-const nodemailer = require("nodemailer");
-
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true,
-  family: 4,
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: (process.env.GMAIL_APP_PASSWORD || "").replace(/\s/g, ""),
-  },
-});
+const { Resend } = require("resend");
 
 async function sendOtpEmail(email, otp) {
-  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-    throw new Error("Gmail credentials are missing from Render environment variables.");
+  const apiKey = process.env.RESEND_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("RESEND_API_KEY is missing.");
   }
 
-  await transporter.sendMail({
-    from: `"IT Support Ticketing System" <${process.env.GMAIL_USER}>`,
-    to: email,
-    subject: "Your Email Verification Code",
-    text: `Your verification code is ${otp}. It expires in 10 minutes. If you did not request this code, ignore this email.`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto;">
-        <h2>IT Support Ticketing System</h2>
-        <p>Use this code to verify your email address:</p>
-        <h1 style="letter-spacing: 8px;">${otp}</h1>
-        <p>This code expires in 10 minutes.</p>
-        <p>If you did not request this code, ignore this email.</p>
-      </div>
-    `,
-  });
+  const resend = new Resend(apiKey);
+  const fromEmail =
+    process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+
+  console.log("Starting Resend OTP request...");
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: `FaultLiNE <${fromEmail}>`,
+      to: [email],
+      subject: "Your FaultLiNE Verification Code",
+      text: `Your verification code is ${otp}. It expires in 10 minutes. If you did not request this code, ignore this email.`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto;">
+          <h2>FaultLiNE Management System</h2>
+          <p>Your email verification code is:</p>
+          <h1 style="letter-spacing: 8px;">${otp}</h1>
+          <p>This code expires in 10 minutes.</p>
+        </div>
+      `,
+    });
+
+    if (error) {
+      console.error("Resend API error:", error);
+      throw new Error(error.message || "Resend API request failed.");
+    }
+
+    console.log("OTP email accepted by Resend:", data?.id);
+    return data;
+  } catch (error) {
+    console.error("Resend request failed:", error.message);
+    throw error;
+  }
 }
 
 module.exports = { sendOtpEmail };

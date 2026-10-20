@@ -9,10 +9,11 @@ const { sendOtpEmail } = require("../emailService");
 
 const router = express.Router();
 
-const sendOtpEmailWithTimeout = (email, otp, timeoutMs = 10000) =>
+
+const sendOtpEmailWithTimeout = (email, otp, timeoutMs = 30000) =>
     new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
-            reject(new Error("OTP email sending timed out"));
+            reject(new Error("OTP email sending timed out after 30 seconds"));
         }, timeoutMs);
 
         sendOtpEmail(email, otp)
