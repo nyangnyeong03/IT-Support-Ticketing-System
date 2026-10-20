@@ -2,7 +2,10 @@
 const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true,
+  family: 4,
   auth: {
     user: process.env.GMAIL_USER,
     pass: (process.env.GMAIL_APP_PASSWORD || "").replace(/\s/g, ""),
@@ -11,7 +14,7 @@ const transporter = nodemailer.createTransport({
 
 async function sendOtpEmail(email, otp) {
   if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-    throw new Error("Gmail credentials are missing from backend .env");
+    throw new Error("Gmail credentials are missing from Render environment variables.");
   }
 
   await transporter.sendMail({
