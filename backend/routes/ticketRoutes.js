@@ -388,6 +388,7 @@ router.put(
             const [tickets] = await db.promise().query(
                 `SELECT
                     id,
+                     user_id,
                     status,
                     resolution
                  FROM tickets
@@ -434,6 +435,21 @@ await logActivity(
     "UPDATE_STATUS",
     `Updated ticket #${ticketId} status to ${status}`
 );
+if (status !== currentTicket.status) {
+    const notificationMessage =
+        `Your ticket #${ticketId} status changed from ${currentTicket.status} to ${status}.`;
+
+    await db.promise().query(
+        `INSERT INTO notifications
+            (user_id, ticket_id, message)
+         VALUES (?, ?, ?)`,
+        [
+            currentTicket.user_id,
+            ticketId,
+            notificationMessage
+        ]
+    );
+}
             res.json({
                 message: "Ticket status updated successfully!",
                 ticket_id: Number(ticketId),

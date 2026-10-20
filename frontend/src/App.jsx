@@ -225,6 +225,102 @@ const sendComment = async () => {
     }
 };
 
+    // ========================================
+    // LOAD NOTIFICATIONS
+    // ========================================
+    const loadNotifications = async () => {
+        setLoadingNotifications(true);
+        setNotificationMessage("");
+
+        try {
+            const token = localStorage.getItem("token");
+
+            const response = await fetch(
+                "https://it-support-ticketing-system.onrender.com/api/notifications",
+                {
+                    method: "GET",
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                setNotificationMessage(
+                    data.message || "Failed to load notifications."
+                );
+                return;
+            }
+
+            setNotifications(data.notifications || []);
+        } catch (error) {
+            console.error("Load notifications error:", error);
+            setNotificationMessage(
+                "Cannot connect to the server while loading notifications."
+            );
+        } finally {
+            setLoadingNotifications(false);
+        }
+    };
+
+    // ========================================
+    // MARK NOTIFICATION AS READ
+    // ========================================
+    const markNotificationAsRead = async (notificationId) => {
+        setMarkingReadId(notificationId);
+        setNotificationMessage("");
+
+        try {
+            const token = localStorage.getItem("token");
+
+            const response = await fetch(
+                `https://it-support-ticketing-system.onrender.com/api/notifications/${notificationId}/read`,
+                {
+                    method: "PUT",
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                setNotificationMessage(
+                    data.message || "Failed to mark notification as read."
+                );
+                return;
+            }
+
+            setNotifications((previousNotifications) =>
+                previousNotifications.map((notification) =>
+                    String(notification.id) === String(notificationId)
+                        ? { ...notification, is_read: 1 }
+                        : notification
+                )
+            );
+        } catch (error) {
+            console.error("Mark notification as read error:", error);
+            setNotificationMessage(
+                "Cannot connect to the server."
+            );
+        } finally {
+            setMarkingReadId(null);
+        }
+    };
+    
+    // ========================================
+    // LOAD NOTIFICATIONS WHEN PAGE OPENS
+    // ========================================
+    useEffect(() => {
+        if (user && activePage === "notifications") {
+            loadNotifications();
+        }
+    }, [user, activePage]);
+
+
     const handleLogin = async (e) => {
         e.preventDefault();
 
