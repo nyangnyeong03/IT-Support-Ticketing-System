@@ -4,9 +4,14 @@ import StaffDashboard from "./StaffDashboard";
 
 function App() {
     const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [message, setMessage] = useState("");
+const [password, setPassword] = useState("");
+const [message, setMessage] = useState("");
 
+
+const [authMode, setAuthMode] = useState("login");
+const [fullName, setFullName] = useState("");
+const [confirmPassword, setConfirmPassword] = useState("");
+const [authSubmitting, setAuthSubmitting] = useState(false);
     const [user, setUser] = useState(
         JSON.parse(localStorage.getItem("user")) || null
     );
@@ -377,6 +382,61 @@ const sendComment = async () => {
         }
     };
 
+const handleRegister = async (e) => {
+    e.preventDefault();
+    setMessage("");
+
+    if (password !== confirmPassword) {
+        setMessage("Passwords do not match.");
+        return;
+    }
+
+    if (password.length < 8) {
+        setMessage("Password must be at least 8 characters.");
+        return;
+    }
+
+    setAuthSubmitting(true);
+
+    try {
+        const response = await fetch(
+            "https://it-support-ticketing-system.onrender.com/api/auth/register",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    full_name: fullName.trim(),
+                    email: email.trim(),
+                    password
+                })
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            setMessage(data.message || "Registration failed.");
+            return;
+        }
+
+        setMessage(
+            data.message || "Account created successfully! You can now log in."
+        );
+
+        setAuthMode("login");
+        setFullName("");
+        setPassword("");
+        setConfirmPassword("");
+    } catch (error) {
+        console.error("Registration error:", error);
+        setMessage("Cannot connect to the server. Please try again.");
+    } finally {
+        setAuthSubmitting(false);
+    }
+};
+
 
     // ========================================
     // LOGOUT
@@ -420,97 +480,141 @@ const sendComment = async () => {
     // LOGIN PAGE
     // ========================================
 
-    if (!user) {
+    
+if (!user) {
+    const isRegister = authMode === "register";
 
-        return (
-            <div className="login-page">
-
-                <div className="login-card">
-
-                    <div className="login-header">
-
-                        <h1>
-                            FaultLiNE
-                        </h1>
-
-                        <p>
-                            IT Support & Ticketing
-                        </p>
-
-                        <span>
-                            Sign in to continue
-                        </span>
-
-                    </div>
-
-
-                    <form onSubmit={handleLogin}>
-
-                        <div className="form-group">
-
-                            <label>
-                                Email
-                            </label>
-
-                            <input
-                                type="email"
-                                placeholder="Enter your email"
-                                value={email}
-                                onChange={(e) =>
-                                    setEmail(
-                                        e.target.value
-                                    )
-                                }
-                                required
-                            />
-
-                        </div>
-
-
-                        <div className="form-group">
-
-                            <label>
-                                Password
-                            </label>
-
-                            <input
-                                type="password"
-                                placeholder="Enter your password"
-                                value={password}
-                                onChange={(e) =>
-                                    setPassword(
-                                        e.target.value
-                                    )
-                                }
-                                required
-                            />
-
-                        </div>
-
-
-                        <button
-                            className="login-button"
-                            type="submit"
-                        >
-                            Login
-                        </button>
-
-                    </form>
-
-
-                    {message && (
-
-                        <div className="message">
-                            {message}
-                        </div>
-
-                    )}
-
+    return (
+        <div className="login-page">
+            <div className="login-card auth-card" key={authMode}>
+                <div className="login-header">
+                    <div className="auth-logo">FL</div>
+                    <h1>FaultLiNE</h1>
+                    <p>IT Support & Ticketing</p>
+                    <span>
+                        {isRegister
+                            ? "Create your account to get started"
+                            : "Welcome back. Sign in to continue"}
+                    </span>
                 </div>
 
+                <div className="auth-toggle">
+                    <button
+                        type="button"
+                        className={!isRegister ? "auth-tab active" : "auth-tab"}
+                        onClick={() => {
+                            setAuthMode("login");
+                            setMessage("");
+                        }}
+                    >
+                        Login
+                    </button>
+
+                    <button
+                        type="button"
+                        className={isRegister ? "auth-tab active" : "auth-tab"}
+                        onClick={() => {
+                            setAuthMode("register");
+                            setMessage("");
+                        }}
+                    >
+                        Register
+                    </button>
+                </div>
+
+                <form onSubmit={isRegister ? handleRegister : handleLogin}>
+                    {isRegister && (
+                        <div className="form-group">
+                            <label>Full Name</label>
+                            <input
+                                type="text"
+                                placeholder="Enter your full name"
+                                value={fullName}
+                                onChange={(e) => setFullName(e.target.value)}
+                                autoComplete="name"
+                                required
+                            />
+                        </div>
+                    )}
+
+                    <div className="form-group">
+                        <label>Email</label>
+                        <input
+                            type="email"
+                            placeholder="Enter your email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            autoComplete="email"
+                            required
+                        />
+                    </div>
+
+                    <div className="form-group">
+                        <label>Password</label>
+                        <input
+                            type="password"
+                            placeholder={isRegister ? "At least 8 characters" : "Enter your password"}
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            autoComplete={isRegister ? "new-password" : "current-password"}
+                            minLength={isRegister ? 8 : undefined}
+                            required
+                        />
+                    </div>
+
+                    {isRegister && (
+                        <div className="form-group">
+                            <label>Confirm Password</label>
+                            <input
+                                type="password"
+                                placeholder="Re-enter your password"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                autoComplete="new-password"
+                                minLength={8}
+                                required
+                            />
+                        </div>
+                    )}
+
+                    <button
+                        className="login-button"
+                        type="submit"
+                        disabled={authSubmitting}
+                    >
+                        {authSubmitting
+                            ? "Creating account..."
+                            : isRegister
+                                ? "Create Account"
+                                : "Login"}
+                    </button>
+                </form>
+
+                {message && (
+                    <div className="message" role="status">
+                        {message}
+                    </div>
+                )}
+
+                <p className="auth-footer">
+                    {isRegister
+                        ? "Already have an account?"
+                        : "New to FaultLiNE?"}{" "}
+                    <button
+                        type="button"
+                        className="auth-link"
+                        onClick={() => {
+                            setAuthMode(isRegister ? "login" : "register");
+                            setMessage("");
+                        }}
+                    >
+                        {isRegister ? "Login here" : "Create an account"}
+                    </button>
+                </p>
             </div>
-        );
-    }
+        </div>
+    );
+}
 
 
     // ========================================

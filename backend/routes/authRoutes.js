@@ -9,6 +9,24 @@ const { sendOtpEmail } = require("../emailService");
 
 const router = express.Router();
 
+const sendOtpEmailWithTimeout = (email, otp, timeoutMs = 10000) =>
+    new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            reject(new Error("OTP email sending timed out"));
+        }, timeoutMs);
+
+        sendOtpEmail(email, otp)
+            .then((result) => {
+                clearTimeout(timer);
+                resolve(result);
+            })
+            .catch((error) => {
+                clearTimeout(timer);
+                reject(error);
+            });
+    });
+
+
 const normalizeEmail = (email) =>
     String(email || "").trim().toLowerCase();
 
@@ -77,7 +95,7 @@ router.post("/register", async (req, res) => {
         );
 
         try {
-            await sendOtpEmail(email, otp);
+            await sendOtpEmailWithTimeout(email, otp);
 
             return res.status(201).json({
                 message: "Account created. Check your email for the verification code.",
@@ -254,7 +272,7 @@ router.post("/resend-otp", async (req, res) => {
         );
 
         try {
-            await sendOtpEmail(email, otp);
+            await sendOtpEmailWithTimeout(email, otp);
         } catch (emailError) {
             console.error("Resend OTP email error:", emailError.message);
 
