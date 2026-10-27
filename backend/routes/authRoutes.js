@@ -73,7 +73,7 @@ router.post("/register", async (req, res) => {
             });
         }
 
-        const [existingUsers] = await db.query(
+        const [existingUsers] = await db.promise().query(
             "SELECT id, email_verified FROM users WHERE email = ? LIMIT 1",
             [email]
         );
@@ -95,7 +95,7 @@ router.post("/register", async (req, res) => {
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        const [userResult] = await db.query(
+        const [userResult] = await db.promise().query(
             `INSERT INTO users
                 (full_name, email, password, role, email_verified)
              VALUES (?, ?, ?, 'user', 0)`,
@@ -107,7 +107,7 @@ router.post("/register", async (req, res) => {
         const otpHash = hashOtp(otp);
 
         // OTP expires after 5 minutes.
-        await db.query(
+        await db.promise().query(
             `INSERT INTO email_otps
                 (user_id, otp_hash, expires_at, attempts)
              VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 MINUTE), 0)`,
@@ -157,7 +157,7 @@ router.post("/verify-email", async (req, res) => {
             });
         }
 
-        const [users] = await db.query(
+        const [users] = await db.promise().query(
             "SELECT id, email_verified FROM users WHERE email = ? LIMIT 1",
             [email]
         );
@@ -176,7 +176,7 @@ router.post("/verify-email", async (req, res) => {
             });
         }
 
-        const [otpRows] = await db.query(
+        const [otpRows] = await db.promise().query(
             `SELECT
                 id,
                 otp_hash,
@@ -204,7 +204,7 @@ router.post("/verify-email", async (req, res) => {
         }
 
         if (Number(savedOtp.not_expired) !== 1) {
-            await db.query(
+            await db.promise().query(
                 "DELETE FROM email_otps WHERE user_id = ?",
                 [user.id]
             );
@@ -222,7 +222,7 @@ router.post("/verify-email", async (req, res) => {
             crypto.timingSafeEqual(submittedHash, storedHash);
 
         if (!otpMatches) {
-            await db.query(
+            await db.promise().query(
                 "UPDATE email_otps SET attempts = attempts + 1 WHERE id = ?",
                 [savedOtp.id]
             );
@@ -232,12 +232,12 @@ router.post("/verify-email", async (req, res) => {
             });
         }
 
-        await db.query(
+        await db.promise().query(
             "UPDATE users SET email_verified = 1 WHERE id = ?",
             [user.id]
         );
 
-        await db.query(
+        await db.promise().query(
             "DELETE FROM email_otps WHERE user_id = ?",
             [user.id]
         );
@@ -268,7 +268,7 @@ router.post("/resend-otp", async (req, res) => {
             });
         }
 
-        const [users] = await db.query(
+        const [users] = await db.promise().query(
             `SELECT id, full_name, email_verified
              FROM users
              WHERE email = ?
@@ -291,7 +291,7 @@ router.post("/resend-otp", async (req, res) => {
         }
 
         // Remove any previous OTP before creating a new one.
-        await db.query(
+        await db.promise().query(
             "DELETE FROM email_otps WHERE user_id = ?",
             [user.id]
         );
@@ -299,7 +299,7 @@ router.post("/resend-otp", async (req, res) => {
         const otp = createOtp();
         const otpHash = hashOtp(otp);
 
-        await db.query(
+        await db.promise().query(
             `INSERT INTO email_otps
                 (user_id, otp_hash, expires_at, attempts)
              VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 MINUTE), 0)`,
@@ -347,7 +347,7 @@ router.post("/login", async (req, res) => {
             });
         }
 
-        const [users] = await db.query(
+        const [users] = await db.promise().query(
             "SELECT * FROM users WHERE email = ? LIMIT 1",
             [email]
         );
@@ -436,7 +436,7 @@ router.get("/profile", authenticateToken, async (req, res) => {
     try {
         const userId = req.user.id || req.user.userId;
 
-        const [users] = await db.query(
+        const [users] = await db.promise().query(
             `SELECT id, full_name, email, role, status, email_verified
              FROM users
              WHERE id = ?
