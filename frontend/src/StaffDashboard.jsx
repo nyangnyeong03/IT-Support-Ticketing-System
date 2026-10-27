@@ -328,35 +328,106 @@ function StaffDashboard({ user, onLogout }) {
         }
     };
 
-    // Ticket counts
-    const pendingCount = tickets.filter(
-        (ticket) => ticket.status === "Pending"
-    ).length;
+    // PERMANENT DELETE USER ACCOUNT
+const deleteUserAccount = async (account) => {
+    if (!isAdmin) return;
 
-    const inProgressCount = tickets.filter(
-        (ticket) => ticket.status === "In Progress"
-    ).length;
+    if (Number(account.id) === Number(user.id)) {
+        setUserMessage("You cannot delete your own account.");
+        return;
+    }
 
-    const resolvedCount = tickets.filter(
-        (ticket) => ticket.status === "Resolved"
-    ).length;
+    const confirmed = window.confirm(
+        `Are you sure you want to permanently delete ${account.full_name}?\n\n` +
+        `Email: ${account.email}\n\n` +
+        `All related tickets and records may also be deleted.\n` +
+        `This action cannot be undone.`
+    );
 
-    const closedCount = tickets.filter(
-        (ticket) => ticket.status === "Closed"
-    ).length;
+    if (!confirmed) return;
 
-    const getPageTitle = () => {
-        if (activePage === "dashboard") {
-            return isAdmin ? "Admin Dashboard" : "IT Staff Dashboard";
+    const confirmation = window.prompt(
+        'Type DELETE to confirm permanent account deletion:'
+    );
+
+    if (confirmation !== "DELETE") {
+        setUserMessage("Account deletion cancelled.");
+        return;
+    }
+
+    setUpdatingUserId(account.id);
+    setUserMessage("");
+
+    try {
+        const response = await fetch(
+            `${API_URL}/api/admin/users/${account.id}`,
+            {
+                method: "DELETE",
+                headers: requestHeaders,
+                body: JSON.stringify({
+                    confirmation: "DELETE"
+                })
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                data.message || "Failed to delete account."
+            );
         }
 
-        if (activePage === "tickets") return "Ticket Management";
-        if (activePage === "users") return "User Management";
-        if (activePage === "reports") return "Reports";
+        await Promise.all([
+            loadUsers(),
+            loadAdminStats()
+        ]);
 
-        return "Dashboard";
-    };
+        setUserMessage("Account permanently deleted successfully.");
 
+    } catch (error) {
+        setUserMessage(
+            error.message || "Unable to delete account."
+        );
+    } finally {
+        setUpdatingUserId(null);
+    }
+};
+// TICKET COUNTS
+const pendingCount = tickets.filter(
+    (ticket) => ticket.status === "Pending"
+).length;
+
+const inProgressCount = tickets.filter(
+    (ticket) => ticket.status === "In Progress"
+).length;
+
+const resolvedCount = tickets.filter(
+    (ticket) => ticket.status === "Resolved"
+).length;
+
+const closedCount = tickets.filter(
+    (ticket) => ticket.status === "Closed"
+).length;
+// GET CURRENT PAGE TITLE
+const getPageTitle = () => {
+    switch (activePage) {
+        case "dashboard":
+            return "Dashboard";
+
+        case "tickets":
+            return "Ticket Management";
+
+        case "users":
+            return "User Management";
+
+        case "reports":
+            return "Reports";
+
+        default:
+            return "FaultLiNE Management System";
+    }
+};
     const renderDashboard = () => (
         <>
             {isAdmin && (
@@ -815,13 +886,23 @@ function StaffDashboard({ user, onLogout }) {
                                                         updateUserStatus(account)
                                                     }
                                                 >
-                                                    {isUpdating
-                                                        ? "Saving..."
-                                                        : account.status === "active"
-                                                        ? "Deactivate"
-                                                        : "Activate"}
-                                                </button>
-                                            </td>
+                                                   {isUpdating
+    ? "Saving..."
+    : account.status === "active"
+    ? "Deactivate"
+    : "Activate"}
+</button>
+
+{/* PERMANENT DELETE ACCOUNT BUTTON */}
+<button
+    type="button"
+    className="staff-delete-button"
+    disabled={isSelf || isUpdating}
+    onClick={() => deleteUserAccount(account)}
+>
+    Delete
+</button>
+</td>
                                         </tr>
                                     );
                                 })}

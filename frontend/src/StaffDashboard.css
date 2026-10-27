@@ -575,3 +575,24 @@
         transition-duration: 0.01ms !important;
     }
 }
+.staff-delete-button {
+    margin-left: 10px;
+    padding: 9px 14px;
+    border: 1px solid #ef4444;
+    border-radius: 8px;
+    background: rgba(239, 68, 68, 0.12);
+    color: #f87171;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s ease;
+}
+
+.staff-delete-button:hover:not(:disabled) {
+    background: #dc2626;
+    color: white;
+}
+
+.staff-delete-button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}

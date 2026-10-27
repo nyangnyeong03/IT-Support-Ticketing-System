@@ -194,5 +194,57 @@ router.get(
         }
     }
 );
+// PERMANENT DELETE USER ACCOUNT
+router.delete(
+    "/users/:id",
+    authenticateToken,
+    authorizeRoles("admin"),
+    async (req, res) => {
+        try {
+            const userId = Number(req.params.id);
+
+            if (!Number.isSafeInteger(userId) || userId <= 0) {
+                return res.status(400).json({
+                    message: "Invalid user ID."
+                });
+            }
+
+            if (userId === Number(req.user.id)) {
+                return res.status(403).json({
+                    message: "You cannot delete your own admin account."
+                });
+            }
+
+            if (req.body?.confirmation !== "DELETE") {
+                return res.status(400).json({
+                    message: "Deletion confirmation is required."
+                });
+            }
+
+            const [result] = await db.promise().query(
+                "DELETE FROM users WHERE id = ?",
+                [userId]
+            );
+
+            if (result.affectedRows === 0) {
+                return res.status(404).json({
+                    message: "Account not found."
+                });
+            }
+
+            return res.json({
+                message: "Account permanently deleted successfully.",
+                user_id: userId
+            });
+
+        } catch (error) {
+            console.error("PERMANENT DELETE USER ERROR:", error);
+
+            return res.status(500).json({
+                message: "Failed to delete account. Check related database constraints."
+            });
+        }
+    }
+);
 
 module.exports = router;
