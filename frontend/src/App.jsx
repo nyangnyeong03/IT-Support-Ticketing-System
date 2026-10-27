@@ -584,8 +584,32 @@ if (!user) {
     const isRegister = authMode === "register";
 
     return (
-        <div className="login-page">
-            <div className="login-card auth-card" key={authMode}>
+        <div className="login-page fl-auth-page">
+            <div className="fl-orbit fl-orbit-one" aria-hidden="true" />
+            <div className="fl-orbit fl-orbit-two" aria-hidden="true" />
+            <div className="fl-auth-layout">
+                <section className="fl-hero" aria-label="FaultLiNE IT support platform">
+                    <div className="fl-hero-eyebrow"><span className="fl-live-dot" /> FAULTLINE SYSTEMS / ONLINE</div>
+                    <h2>IT support, <span>reimagined.</span></h2>
+                    <p className="fl-hero-description">Report issues. Track requests. Get back to what matters — with one connected support workspace.</p>
+                    <div className="fl-robot-scene" aria-hidden="true">
+                        <div className="fl-robot-halo" />
+                        <div className="fl-robot">
+                            <div className="fl-robot-antenna"><i /></div>
+                            <div className="fl-robot-head">
+                                <div className="fl-robot-face"><span className="fl-eye" /><span className="fl-eye" /><span className="fl-mouth" /></div>
+                            </div>
+                            <div className="fl-robot-neck" />
+                            <div className="fl-robot-body"><span className="fl-robot-core">FL</span><span className="fl-robot-body-line" /></div>
+                            <div className="fl-robot-arm fl-robot-arm-left" /><div className="fl-robot-arm fl-robot-arm-right" />
+                        </div>
+                        <div className="fl-floating-chip fl-chip-left"><span>●</span> SYSTEM SECURE</div>
+                        <div className="fl-floating-chip fl-chip-right"><span>✦</span> SUPPORT ACTIVE</div>
+                        <div className="fl-robot-shadow" />
+                    </div>
+                    <div className="fl-hero-features"><span>✧ Real-time tracking</span><span>✧ Secure verification</span><span>✧ Faster resolutions</span></div>
+                </section>
+                <div className="login-card auth-card" key={authMode}>
                 <div className="login-header">
                     <div className="auth-logo">FL</div>
                     <h1>FaultLiNE</h1>
@@ -710,6 +734,7 @@ if (!user) {
                         {isRegister ? "Login here" : "Create an account"}
                     </button>
                 </p>
+                </div>
             </div>
             {otpOpen && (
                 <div className="otp-overlay" onClick={() => setOtpOpen(false)}>
@@ -1008,8 +1033,15 @@ if (!user) {
                 {activePage === "dashboard" && (
 
                     <div className="page-content">
-
-
+                        <section className="fl-dashboard-welcome">
+                            <div>
+                                <span className="fl-welcome-tag"><span className="fl-live-dot" /> YOUR SUPPORT HUB</span>
+                                <h2>Everything running smoothly?</h2>
+                                <p>We're here when you need a hand. Submit a request or check the status of your tickets.</p>
+                                <button type="button" className="fl-welcome-action" onClick={() => setActivePage("submit")}>+ Create support ticket <span aria-hidden="true">↗</span></button>
+                            </div>
+                            <div className="fl-welcome-art" aria-hidden="true"><div className="fl-welcome-ring"><span>FL</span></div><i className="fl-welcome-spark fl-spark-a" /><i className="fl-welcome-spark fl-spark-b" /></div>
+                        </section>
                         <div className="stats-grid">
 
 
