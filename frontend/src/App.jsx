@@ -179,7 +179,9 @@ useEffect(() => {
                 return;
             }
 
-            setTickets(data.tickets || []);
+            // Closed tickets stay in the database for IT Staff and Admin,
+            // but are hidden from the User Dashboard.
+            setTickets((data.tickets || []).filter((ticket) => ticket.status !== "Closed"));
 
         } catch (error) {
             console.error(
@@ -280,14 +282,14 @@ const confirmCloseTicket = async () => {
         );
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || "Unable to close ticket.");
-        setTickets((previous) => previous.map((ticket) =>
-            Number(ticket.id) === Number(selectedTicket.id)
-                ? { ...ticket, status: "Closed" }
-                : ticket
+        // Remove the confirmed ticket from all User Dashboard lists and counts.
+        // The backend record is retained for IT Staff and Admin.
+        setTickets((previous) => previous.filter(
+            (ticket) => Number(ticket.id) !== Number(selectedTicket.id)
         ));
-        setSelectedTicket((previous) => previous ? { ...previous, status: "Closed" } : previous);
+        setSelectedTicket(null);
         setCommentText("");
-        setCloseTicketMessage("Ticket closed successfully. Thank you for confirming!");
+        setCloseTicketMessage("");
     } catch (error) {
         setCloseTicketMessage(error.message || "Cannot connect to the server.");
     } finally {
