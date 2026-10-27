@@ -5,6 +5,8 @@ import StaffDashboard from "./StaffDashboard";
 function App() {
     const [email, setEmail] = useState("");
 const [password, setPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 const [message, setMessage] = useState("");
 
 
@@ -673,30 +675,54 @@ if (!user) {
                     </div>
 
                     <div className="form-group">
-                        <label>Password</label>
-                        <input
-                            type="password"
-                            placeholder={isRegister ? "At least 8 characters" : "Enter your password"}
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            autoComplete={isRegister ? "new-password" : "current-password"}
-                            minLength={isRegister ? 8 : undefined}
-                            required
-                        />
+                        <label htmlFor="fl-password">Password</label>
+                        <div className="password-wrapper">
+                            <input
+                                id="fl-password"
+                                type={showPassword ? "text" : "password"}
+                                placeholder={isRegister ? "At least 8 characters" : "Enter your password"}
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                autoComplete={isRegister ? "new-password" : "current-password"}
+                                minLength={isRegister ? 8 : undefined}
+                                required
+                            />
+                            <button
+                                type="button"
+                                className="password-toggle"
+                                onClick={() => setShowPassword((current) => !current)}
+                                aria-label={showPassword ? "Hide password" : "Show password"}
+                                aria-pressed={showPassword}
+                            >
+                                {showPassword ? "Hide" : "Show"}
+                            </button>
+                        </div>
                     </div>
 
                     {isRegister && (
                         <div className="form-group">
-                            <label>Confirm Password</label>
-                            <input
-                                type="password"
-                                placeholder="Re-enter your password"
-                                value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                autoComplete="new-password"
-                                minLength={8}
-                                required
-                            />
+                            <label htmlFor="fl-confirm-password">Confirm Password</label>
+                            <div className="password-wrapper">
+                                <input
+                                    id="fl-confirm-password"
+                                    type={showConfirmPassword ? "text" : "password"}
+                                    placeholder="Re-enter your password"
+                                    value={confirmPassword}
+                                    onChange={(e) => setConfirmPassword(e.target.value)}
+                                    autoComplete="new-password"
+                                    minLength={8}
+                                    required
+                                />
+                                <button
+                                    type="button"
+                                    className="password-toggle"
+                                    onClick={() => setShowConfirmPassword((current) => !current)}
+                                    aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                                    aria-pressed={showConfirmPassword}
+                                >
+                                    {showConfirmPassword ? "Hide" : "Show"}
+                                </button>
+                            </div>
                         </div>
                     )}
 

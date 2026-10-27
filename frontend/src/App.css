@@ -2430,3 +2430,15 @@ select:focus-visible {
 @media (max-width: 900px) { .fl-auth-layout { grid-template-columns: 1fr; max-width: 480px; gap: 18px; } .fl-hero { padding: 10px 0; text-align: center; } .fl-hero h2 { font-size: 32px; margin: 13px 0 8px; } .fl-hero h2 span { display: inline; } .fl-hero-description { margin: auto; font-size: 12px; } .fl-robot-scene { height: 135px; margin: 2px 0; transform: scale(.58); transform-origin: center; } .fl-hero-features { justify-content: center; } .fl-auth-page .login-card.auth-card { justify-self: stretch; max-width: none; } }
 @media (max-width: 520px) { .fl-auth-page { padding: 16px; } .fl-hero-eyebrow { font-size: 9px; } .fl-hero h2 { font-size: 27px; } .fl-hero-description { display: none; } .fl-robot-scene { height: 100px; transform: scale(.48); } .fl-hero-features { display: none; } .fl-dashboard-welcome { padding: 22px; } .fl-welcome-art { display: none; } .fl-dashboard-welcome h2 { font-size: 23px; } }
 @media (prefers-reduced-motion: reduce) { .fl-orbit,.fl-live-dot,.fl-robot,.fl-robot-halo,.fl-eye,.fl-robot-arm-right,.fl-floating-chip,.fl-welcome-ring { animation: none !important; } }
+
+/* Show / Hide Password — scoped to login and registration */
+.auth-card .password-wrapper { position: relative; width: 100%; }
+.auth-card .password-wrapper input { width: 100%; padding-right: 84px; }
+.auth-card .password-toggle {
+    position: absolute; top: 50%; right: 10px; transform: translateY(-50%);
+    border: 1px solid rgba(34, 211, 238, .22); border-radius: 8px;
+    padding: 7px 10px; background: rgba(34, 211, 238, .12);
+    color: #67e8f9; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.auth-card .password-toggle:hover { background: rgba(34, 211, 238, .25); color: white; }
+.auth-card .password-toggle:focus-visible { outline: 2px solid #22d3ee; outline-offset: 2px; }
