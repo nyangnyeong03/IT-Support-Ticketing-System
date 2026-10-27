@@ -128,6 +128,8 @@ const [commentText, setCommentText] = useState("");
 const [loadingComments, setLoadingComments] = useState(false);
 const [commentMessage, setCommentMessage] = useState("");
 const [sendingComment, setSendingComment] = useState(false);
+    const [closingTicket, setClosingTicket] = useState(false);
+    const [closeTicketMessage, setCloseTicketMessage] = useState("");
 
 
 const [notifications, setNotifications] = useState([]);
@@ -261,7 +263,39 @@ const loadComments = async (ticketId) => {
 };
 
 
-const sendComment = async () => {
+const confirmCloseTicket = async () => {
+    if (!selectedTicket || selectedTicket.status !== "Resolved" || closingTicket) return;
+    if (!window.confirm("Confirm that your concern is fixed and close this ticket? You will no longer be able to comment.")) return;
+
+    setClosingTicket(true);
+    setCloseTicketMessage("");
+    try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(
+            `https://it-support-ticketing-system.onrender.com/api/tickets/${selectedTicket.id}/confirm-close`,
+            {
+                method: "PUT",
+                headers: { Authorization: `Bearer ${token}` }
+            }
+        );
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || "Unable to close ticket.");
+        setTickets((previous) => previous.map((ticket) =>
+            Number(ticket.id) === Number(selectedTicket.id)
+                ? { ...ticket, status: "Closed" }
+                : ticket
+        ));
+        setSelectedTicket((previous) => previous ? { ...previous, status: "Closed" } : previous);
+        setCommentText("");
+        setCloseTicketMessage("Ticket closed successfully. Thank you for confirming!");
+    } catch (error) {
+        setCloseTicketMessage(error.message || "Cannot connect to the server.");
+    } finally {
+        setClosingTicket(false);
+    }
+};
+
+    const sendComment = async () => {
     if (!selectedTicket) {
         return;
     }
@@ -1068,6 +1102,27 @@ if (!user) {
                             </div>
                             <div className="fl-welcome-art" aria-hidden="true"><div className="fl-welcome-ring"><span>FL</span></div><i className="fl-welcome-spark fl-spark-a" /><i className="fl-welcome-spark fl-spark-b" /></div>
                         </section>
+                        <div className="fl-dash-section-heading">
+                            <div>
+                                <span className="fl-dash-overline">LIVE WORKSPACE</span>
+                                <h3>Support at a glance <span className="fl-dash-heading-star">✦</span></h3>
+                                <p>Track every request from submission to resolution.</p>
+                            </div>
+                            <span className="fl-dash-count-label">{tickets.length} TOTAL REQUESTS</span>
+                        </div>
+                        <div className="fl-dash-progress-panel">
+                            <div className="fl-dash-progress-copy">
+                                <div className="fl-dash-progress-emblem" aria-hidden="true">◎</div>
+                                <div>
+                                    <strong>Resolution progress</strong>
+                                    <p>{tickets.length === 0 ? "Submit your first ticket to get started." : `${tickets.filter((ticket) => ticket.status === "Resolved" || ticket.status === "Closed").length} of ${tickets.length} requests resolved or closed`}</p>
+                                </div>
+                            </div>
+                            <div className="fl-dash-progress-track" role="progressbar" aria-label="Resolved or closed tickets" aria-valuemin={0} aria-valuemax={100} aria-valuenow={tickets.length ? Math.round((tickets.filter((ticket) => ticket.status === "Resolved" || ticket.status === "Closed").length / tickets.length) * 100) : 0}>
+                                <div className="fl-dash-progress-fill" style={{ width: `${tickets.length ? Math.round((tickets.filter((ticket) => ticket.status === "Resolved" || ticket.status === "Closed").length / tickets.length) * 100) : 0}%` }} />
+                            </div>
+                            <strong className="fl-dash-progress-percent">{tickets.length ? Math.round((tickets.filter((ticket) => ticket.status === "Resolved" || ticket.status === "Closed").length / tickets.length) * 100) : 0}%</strong>
+                        </div>
                         <div className="stats-grid">
 
 
@@ -1698,6 +1753,17 @@ if (!user) {
 
     </div>
 
+    {selectedTicket.status === "Resolved" && (
+        <div style={{ margin: "18px 0", padding: "18px", border: "1px solid rgba(34,211,238,.3)", borderRadius: "12px", background: "rgba(34,211,238,.07)" }}>
+            <p style={{ marginTop: 0 }}>Has IT Support fixed your concern? Confirm to close this ticket.</p>
+            <button type="button" className="submit-button" onClick={confirmCloseTicket} disabled={closingTicket}>
+                {closingTicket ? "Closing Ticket..." : "Confirm & Close Ticket"}
+            </button>
+        </div>
+    )}
+    {closeTicketMessage && <p role="status" className="message">{closeTicketMessage}</p>}
+    {selectedTicket.status === "Closed" && <p>This ticket is closed. Comments are disabled.</p>}
+
 
     <div className="ticket-details">
 
@@ -1799,7 +1865,7 @@ if (!user) {
 
         )}
 
-        <div className="comment-form">
+        {selectedTicket.status !== "Closed" && <div className="comment-form">
 
             <textarea
                 placeholder="Write a comment..."
@@ -1823,7 +1889,7 @@ if (!user) {
                     : "Send Comment"}
             </button>
 
-        </div>
+        </div>}
 
 
         {commentMessage && (
@@ -1908,6 +1974,7 @@ if (!user) {
                                 key={ticket.id}
                                 type="button"
                                 onClick={() => {
+                                    setCloseTicketMessage("");
                                     setSelectedTicket(ticket);
                                 }}
                             >

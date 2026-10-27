@@ -468,6 +468,44 @@ if (status !== currentTicket.status) {
 );
 
 
+// USER CONFIRMATION: close an already-resolved ticket owned by the requester.
+router.put("/:id/confirm-close", authenticateToken, authorizeRoles("user"), async (req, res) => {
+    try {
+        const ticketId = Number(req.params.id);
+        if (!Number.isSafeInteger(ticketId) || ticketId < 1) {
+            return res.status(400).json({ message: "Invalid ticket ID." });
+        }
+
+        // Atomic conditional update prevents closing someone else's ticket or a non-resolved ticket.
+        const [result] = await db.promise().query(
+            `UPDATE tickets SET status = 'Closed'
+             WHERE id = ? AND user_id = ? AND status = 'Resolved'`,
+            [ticketId, req.user.id]
+        );
+        if (result.affectedRows !== 1) {
+            const [rows] = await db.promise().query(
+                "SELECT user_id, status FROM tickets WHERE id = ?", [ticketId]
+            );
+            if (!rows.length) return res.status(404).json({ message: "Ticket not found." });
+            if (Number(rows[0].user_id) !== Number(req.user.id)) {
+                return res.status(403).json({ message: "You can only close your own tickets." });
+            }
+            return res.status(409).json({ message: "Only Resolved tickets can be confirmed and closed." });
+        }
+
+        // Secondary audit/notification failures should not misreport a successful status update.
+        try {
+            await logActivity(req.user.id, ticketId, "CONFIRM_CLOSE", `User confirmed and closed ticket #${ticketId}`);
+        } catch (logError) {
+            console.error("Confirm close activity logging error:", logError);
+        }
+        return res.json({ message: "Ticket confirmed and closed successfully!", ticket_id: ticketId, status: "Closed" });
+    } catch (error) {
+        console.error("Confirm close ticket error:", error);
+        return res.status(500).json({ message: "Server error." });
+    }
+});
+
 // ======================================================
 // EXPORT ROUTER
 // ======================================================
