@@ -1,46 +1,42 @@
 
-const { Resend } = require("resend");
+async function sendOtpEmail(email, otp, toName = "FaultLiNE User") {
+  const serviceId = process.env.EMAILJS_SERVICE_ID;
+  const templateId = process.env.EMAILJS_TEMPLATE_ID;
+  const publicKey = process.env.EMAILJS_PUBLIC_KEY;
 
-async function sendOtpEmail(email, otp) {
-  const apiKey = process.env.RESEND_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("RESEND_API_KEY is missing.");
+  if (!serviceId || !templateId || !publicKey) {
+    throw new Error("EmailJS environment variables are missing.");
   }
 
-  const resend = new Resend(apiKey);
-  const fromEmail =
-    process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
-
-  console.log("Starting Resend OTP request...");
-
-  try {
-    const { data, error } = await resend.emails.send({
-      from: `FaultLiNE <${fromEmail}>`,
-      to: [email],
-      subject: "Your FaultLiNE Verification Code",
-      text: `Your verification code is ${otp}. It expires in 10 minutes. If you did not request this code, ignore this email.`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto;">
-          <h2>FaultLiNE Management System</h2>
-          <p>Your email verification code is:</p>
-          <h1 style="letter-spacing: 8px;">${otp}</h1>
-          <p>This code expires in 10 minutes.</p>
-        </div>
-      `,
-    });
-
-    if (error) {
-      console.error("Resend API error:", error);
-      throw new Error(error.message || "Resend API request failed.");
+  const response = await fetch(
+    "https://api.emailjs.com/api/v1.0/email/send",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        service_id: serviceId,
+        template_id: templateId,
+        user_id: publicKey,
+        template_params: {
+          to_email: email,
+          to_name: toName,
+          otp_code: otp,
+        },
+      }),
     }
+  );
 
-    console.log("OTP email accepted by Resend:", data?.id);
-    return data;
-  } catch (error) {
-    console.error("Resend request failed:", error.message);
-    throw error;
+  const result = await response.text();
+
+  if (!response.ok) {
+    console.error("EmailJS error:", response.status, result);
+    throw new Error("Failed to send OTP email through EmailJS.");
   }
+
+  console.log("OTP email sent successfully through EmailJS.");
+  return result;
 }
 
 module.exports = { sendOtpEmail };

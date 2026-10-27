@@ -12,6 +12,97 @@ const [authMode, setAuthMode] = useState("login");
 const [fullName, setFullName] = useState("");
 const [confirmPassword, setConfirmPassword] = useState("");
 const [authSubmitting, setAuthSubmitting] = useState(false);
+const [otpOpen, setOtpOpen] = useState(false);
+const [otpEmail, setOtpEmail] = useState("");
+const [otpCode, setOtpCode] = useState("");
+const [otpMessage, setOtpMessage] = useState("");
+const [otpSubmitting, setOtpSubmitting] = useState(false);
+const [otpExpiresAt, setOtpExpiresAt] = useState(null);
+const [otpSeconds, setOtpSeconds] = useState(0);
+
+useEffect(() => {
+    if (!otpOpen || !otpExpiresAt) return;
+    const updateCountdown = () => {
+        setOtpSeconds(Math.max(0, Math.ceil((otpExpiresAt - Date.now()) / 1000)));
+    };
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+}, [otpOpen, otpExpiresAt]);
+
+const openOtpPopup = (address, notice = "Enter the code sent to your email.") => {
+    setOtpEmail(address);
+    setOtpCode("");
+    setOtpMessage(notice);
+    setOtpExpiresAt(Date.now() + 5 * 60 * 1000);
+    setOtpOpen(true);
+};
+
+const handleVerifyOtp = async (event) => {
+    event.preventDefault();
+    if (!/^\d{6}$/.test(otpCode)) {
+        setOtpMessage("Please enter a valid 6-digit code.");
+        return;
+    }
+    setOtpSubmitting(true);
+    setOtpMessage("");
+    try {
+        const response = await fetch(
+            "https://it-support-ticketing-system.onrender.com/api/auth/verify-email",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: otpEmail, otp: otpCode })
+            }
+        );
+        const data = await response.json();
+        if (!response.ok) {
+            setOtpMessage(data.message || "Verification failed.");
+            return;
+        }
+        setOtpOpen(false);
+        setOtpCode("");
+        setOtpEmail("");
+        setAuthMode("login");
+        setFullName("");
+        setPassword("");
+        setConfirmPassword("");
+        setMessage("Email verified successfully! You can now log in.");
+    } catch (error) {
+        console.error("OTP verification error:", error);
+        setOtpMessage("Cannot connect to the server. Please try again.");
+    } finally {
+        setOtpSubmitting(false);
+    }
+};
+
+const handleResendOtp = async () => {
+    setOtpSubmitting(true);
+    setOtpMessage("");
+    try {
+        const response = await fetch(
+            "https://it-support-ticketing-system.onrender.com/api/auth/resend-otp",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: otpEmail })
+            }
+        );
+        const data = await response.json();
+        if (!response.ok) {
+            setOtpMessage(data.message || "Could not resend the code.");
+            return;
+        }
+        setOtpCode("");
+        setOtpExpiresAt(Date.now() + 5 * 60 * 1000);
+        setOtpMessage("A new verification code has been requested. Check your email.");
+    } catch (error) {
+        console.error("Resend OTP error:", error);
+        setOtpMessage("Cannot connect to the server. Please try again.");
+    } finally {
+        setOtpSubmitting(false);
+    }
+};
     const [user, setUser] = useState(
         JSON.parse(localStorage.getItem("user")) || null
     );
@@ -417,14 +508,22 @@ const handleRegister = async (e) => {
         const data = await response.json();
 
         if (!response.ok) {
+            if (data.requires_verification) {
+                openOtpPopup(data.email || email.trim(), data.message || "Your account needs email verification. You can resend the code.");
+                return;
+            }
             setMessage(data.message || "Registration failed.");
             return;
         }
 
-        setMessage(
-            data.message || "Account created successfully! You can now log in."
-        );
+        if (data.requires_verification) {
+            openOtpPopup(data.email || email.trim());
+            setPassword("");
+            setConfirmPassword("");
+            return;
+        }
 
+        setMessage(data.message || "Account created successfully! You can now log in.");
         setAuthMode("login");
         setFullName("");
         setPassword("");
@@ -612,6 +711,44 @@ if (!user) {
                     </button>
                 </p>
             </div>
+            {otpOpen && (
+                <div className="otp-overlay" onClick={() => setOtpOpen(false)}>
+                    <section
+                        className="otp-modal"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="otp-title"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <button className="otp-close" type="button" aria-label="Close verification popup" onClick={() => setOtpOpen(false)}>×</button>
+                        <div className="otp-shield">✉</div>
+                        <h2 id="otp-title">Verify your email</h2>
+                        <p>Enter the 6-digit code sent to <strong>{otpEmail}</strong>.</p>
+                        <form onSubmit={handleVerifyOtp}>
+                            <input
+                                className="otp-input"
+                                type="text"
+                                inputMode="numeric"
+                                autoComplete="one-time-code"
+                                pattern="[0-9]{6}"
+                                maxLength={6}
+                                placeholder="000000"
+                                aria-label="6-digit verification code"
+                                value={otpCode}
+                                onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                                required
+                                autoFocus
+                            />
+                            <p className="otp-timer">{otpSeconds > 0 ? `Expires in ${Math.floor(otpSeconds / 60)}:${String(otpSeconds % 60).padStart(2, "0")}` : "Code may have expired. Request a new one."}</p>
+                            <button className="otp-verify" type="submit" disabled={otpSubmitting || otpCode.length !== 6}>
+                                {otpSubmitting ? "Please wait..." : "Verify Email"}
+                            </button>
+                        </form>
+                        {otpMessage && <p className="otp-feedback" role="status">{otpMessage}</p>}
+                        <button className="otp-resend" type="button" onClick={handleResendOtp} disabled={otpSubmitting}>Resend Code</button>
+                    </section>
+                </div>
+            )}
         </div>
     );
 }

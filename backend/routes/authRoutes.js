@@ -1,3 +1,4 @@
+
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -9,24 +10,9 @@ const { sendOtpEmail } = require("../emailService");
 
 const router = express.Router();
 
-
-const sendOtpEmailWithTimeout = (email, otp, timeoutMs = 30000) =>
-    new Promise((resolve, reject) => {
-        const timer = setTimeout(() => {
-            reject(new Error("OTP email sending timed out after 30 seconds"));
-        }, timeoutMs);
-
-        sendOtpEmail(email, otp)
-            .then((result) => {
-                clearTimeout(timer);
-                resolve(result);
-            })
-            .catch((error) => {
-                clearTimeout(timer);
-                reject(error);
-            });
-    });
-
+// ========================================
+// HELPERS
+// ========================================
 
 const normalizeEmail = (email) =>
     String(email || "").trim().toLowerCase();
@@ -37,9 +23,30 @@ const createOtp = () =>
 const hashOtp = (otp) =>
     crypto.createHash("sha256").update(otp).digest("hex");
 
+const sendOtpEmailWithTimeout = (
+    email,
+    otp,
+    toName = "FaultLiNE User",
+    timeoutMs = 30000
+) => {
+    let timer;
+
+    return Promise.race([
+        sendOtpEmail(email, otp, toName),
+        new Promise((_, reject) => {
+            timer = setTimeout(() => {
+                reject(
+                    new Error("OTP email sending timed out after 30 seconds")
+                );
+            }, timeoutMs);
+        }),
+    ]).finally(() => clearTimeout(timer));
+};
+
 // ========================================
 // REGISTER + SEND EMAIL OTP
 // ========================================
+
 router.post("/register", async (req, res) => {
     try {
         const fullName = String(req.body.full_name || "").trim();
@@ -48,77 +55,89 @@ router.post("/register", async (req, res) => {
 
         if (!fullName || !email || !password) {
             return res.status(400).json({
-                message: "All fields are required."
+                message: "Please complete all required fields.",
             });
         }
 
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!emailRegex.test(email)) {
             return res.status(400).json({
-                message: "Please enter a valid email address."
+                message: "Please enter a valid email address.",
             });
         }
 
         if (password.length < 8) {
             return res.status(400).json({
-                message: "Password must be at least 8 characters."
+                message: "Password must be at least 8 characters long.",
             });
         }
 
-        const [existingUsers] = await db.promise().query(
-            "SELECT id FROM users WHERE email = ?",
+        const [existingUsers] = await db.query(
+            "SELECT id, email_verified FROM users WHERE email = ? LIMIT 1",
             [email]
         );
 
         if (existingUsers.length > 0) {
+            if (Number(existingUsers[0].email_verified) === 1) {
+                return res.status(409).json({
+                    message: "This email is already registered. Please log in.",
+                });
+            }
+
             return res.status(409).json({
-                message: "Email already exists. Please log in or use another email."
+                message:
+                    "This email already has an unverified account. Please use Resend OTP or contact support.",
+                requires_verification: true,
+                email,
             });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        const [result] = await db.promise().query(
+        const [userResult] = await db.query(
             `INSERT INTO users
                 (full_name, email, password, role, email_verified)
              VALUES (?, ?, ?, 'user', 0)`,
             [fullName, email, hashedPassword]
         );
 
-        const userId = result.insertId;
+        const userId = userResult.insertId;
         const otp = createOtp();
         const otpHash = hashOtp(otp);
 
-        await db.promise().query(
+        // OTP expires after 5 minutes.
+        await db.query(
             `INSERT INTO email_otps
                 (user_id, otp_hash, expires_at, attempts)
-             VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 10 MINUTE), 0)`,
+             VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 MINUTE), 0)`,
             [userId, otpHash]
         );
 
         try {
-            await sendOtpEmailWithTimeout(email, otp);
-
-            return res.status(201).json({
-                message: "Account created. Check your email for the verification code.",
-                user_id: userId,
-                email: email,
-                requires_verification: true
-            });
+            await sendOtpEmailWithTimeout(email, otp, fullName);
         } catch (emailError) {
-            console.error("OTP email sending error:", emailError.message);
+            console.error("Registration OTP email error:", emailError.message);
 
             return res.status(502).json({
-                message: "Account created, but the OTP email could not be sent. Please use the resend OTP option.",
-                user_id: userId,
-                email: email,
-                requires_verification: true
+                message:
+                    "Your account was created, but the OTP email could not be sent. Please use Resend OTP.",
+                requires_verification: true,
+                email,
             });
         }
+
+        return res.status(201).json({
+            message: "Registration successful. Please check your email for the OTP.",
+            user_id: userId,
+            email,
+            requires_verification: true,
+        });
     } catch (error) {
         console.error("Registration error:", error);
 
         return res.status(500).json({
-            message: "Registration failed due to a server error."
+            message: "Registration failed. Please try again.",
         });
     }
 });
@@ -126,6 +145,7 @@ router.post("/register", async (req, res) => {
 // ========================================
 // VERIFY EMAIL OTP
 // ========================================
+
 router.post("/verify-email", async (req, res) => {
     try {
         const email = normalizeEmail(req.body.email);
@@ -133,32 +153,35 @@ router.post("/verify-email", async (req, res) => {
 
         if (!email || !/^\d{6}$/.test(otp)) {
             return res.status(400).json({
-                message: "Enter your email and the 6-digit verification code."
+                message: "Please provide your email and valid 6-digit OTP.",
             });
         }
 
-        const [users] = await db.promise().query(
-            "SELECT id, email_verified FROM users WHERE email = ?",
+        const [users] = await db.query(
+            "SELECT id, email_verified FROM users WHERE email = ? LIMIT 1",
             [email]
         );
 
         if (users.length === 0) {
             return res.status(404).json({
-                message: "Account not found."
+                message: "Account not found. Please register first.",
             });
         }
 
         const user = users[0];
 
         if (Number(user.email_verified) === 1) {
-            return res.json({
-                message: "Email is already verified. You can log in."
+            return res.status(200).json({
+                message: "Your email is already verified. You can log in.",
             });
         }
 
-        const [otpRows] = await db.promise().query(
-            `SELECT id, otp_hash, attempts,
-                    (expires_at > UTC_TIMESTAMP()) AS not_expired
+        const [otpRows] = await db.query(
+            `SELECT
+                id,
+                otp_hash,
+                attempts,
+                (expires_at > UTC_TIMESTAMP()) AS not_expired
              FROM email_otps
              WHERE user_id = ?
              ORDER BY id DESC
@@ -168,7 +191,7 @@ router.post("/verify-email", async (req, res) => {
 
         if (otpRows.length === 0) {
             return res.status(400).json({
-                message: "No verification code found. Please request a new one."
+                message: "No OTP found. Please request a new OTP.",
             });
         }
 
@@ -176,52 +199,57 @@ router.post("/verify-email", async (req, res) => {
 
         if (Number(savedOtp.attempts) >= 5) {
             return res.status(429).json({
-                message: "Too many incorrect attempts. Please request a new code."
+                message: "Too many incorrect attempts. Please request a new OTP.",
             });
         }
 
-        if (!Number(savedOtp.not_expired)) {
+        if (Number(savedOtp.not_expired) !== 1) {
+            await db.query(
+                "DELETE FROM email_otps WHERE user_id = ?",
+                [user.id]
+            );
+
             return res.status(400).json({
-                message: "Verification code expired. Please request a new one."
+                message: "Your OTP has expired. Please request a new one.",
             });
         }
 
         const submittedHash = Buffer.from(hashOtp(otp), "hex");
-        const savedHash = Buffer.from(savedOtp.otp_hash, "hex");
+        const storedHash = Buffer.from(savedOtp.otp_hash, "hex");
 
-        const matches =
-            submittedHash.length === savedHash.length &&
-            crypto.timingSafeEqual(submittedHash, savedHash);
+        const otpMatches =
+            submittedHash.length === storedHash.length &&
+            crypto.timingSafeEqual(submittedHash, storedHash);
 
-        if (!matches) {
-            await db.promise().query(
+        if (!otpMatches) {
+            await db.query(
                 "UPDATE email_otps SET attempts = attempts + 1 WHERE id = ?",
                 [savedOtp.id]
             );
 
             return res.status(400).json({
-                message: "Incorrect verification code."
+                message: "Incorrect OTP. Please try again.",
             });
         }
 
-        await db.promise().query(
+        await db.query(
             "UPDATE users SET email_verified = 1 WHERE id = ?",
             [user.id]
         );
 
-        await db.promise().query(
+        await db.query(
             "DELETE FROM email_otps WHERE user_id = ?",
             [user.id]
         );
 
-        return res.json({
-            message: "Email verified successfully. You can now log in."
+        return res.status(200).json({
+            message: "Email verified successfully. You can now log in.",
         });
     } catch (error) {
-        console.error("Email verification error:", error);
+        console.error("OTP verification error:", error);
 
         return res.status(500).json({
-            message: "Email verification failed due to a server error."
+            message: "Could not verify your email. Please try again.",
         });
     }
 });
@@ -229,67 +257,77 @@ router.post("/verify-email", async (req, res) => {
 // ========================================
 // RESEND OTP
 // ========================================
+
 router.post("/resend-otp", async (req, res) => {
     try {
         const email = normalizeEmail(req.body.email);
 
         if (!email) {
             return res.status(400).json({
-                message: "Email is required."
+                message: "Email is required.",
             });
         }
 
-        const [users] = await db.promise().query(
-            "SELECT id, email_verified FROM users WHERE email = ?",
+        const [users] = await db.query(
+            `SELECT id, full_name, email_verified
+             FROM users
+             WHERE email = ?
+             LIMIT 1`,
             [email]
         );
 
         if (users.length === 0) {
             return res.status(404).json({
-                message: "Account not found."
+                message: "Account not found. Please register first.",
             });
         }
 
         const user = users[0];
 
         if (Number(user.email_verified) === 1) {
-            return res.json({
-                message: "Email is already verified. You can log in."
+            return res.status(400).json({
+                message: "Your email is already verified. Please log in.",
             });
         }
 
-        const otp = createOtp();
-
-        await db.promise().query(
+        // Remove any previous OTP before creating a new one.
+        await db.query(
             "DELETE FROM email_otps WHERE user_id = ?",
             [user.id]
         );
 
-        await db.promise().query(
+        const otp = createOtp();
+        const otpHash = hashOtp(otp);
+
+        await db.query(
             `INSERT INTO email_otps
                 (user_id, otp_hash, expires_at, attempts)
-             VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 10 MINUTE), 0)`,
-            [user.id, hashOtp(otp)]
+             VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 MINUTE), 0)`,
+            [user.id, otpHash]
         );
 
         try {
-            await sendOtpEmailWithTimeout(email, otp);
+            await sendOtpEmailWithTimeout(
+                email,
+                otp,
+                user.full_name || "FaultLiNE User"
+            );
         } catch (emailError) {
             console.error("Resend OTP email error:", emailError.message);
 
             return res.status(502).json({
-                message: "Could not send the email. Please try again later."
+                message: "Could not send a new OTP email. Please try again.",
             });
         }
 
-        return res.json({
-            message: "A new verification code has been sent to your email."
+        return res.status(200).json({
+            message: "A new OTP has been sent to your email.",
         });
     } catch (error) {
         console.error("Resend OTP error:", error);
 
         return res.status(500).json({
-            message: "Could not resend the verification code."
+            message: "Could not resend OTP. Please try again.",
         });
     }
 });
@@ -297,6 +335,7 @@ router.post("/resend-otp", async (req, res) => {
 // ========================================
 // LOGIN
 // ========================================
+
 router.post("/login", async (req, res) => {
     try {
         const email = normalizeEmail(req.body.email);
@@ -304,43 +343,55 @@ router.post("/login", async (req, res) => {
 
         if (!email || !password) {
             return res.status(400).json({
-                message: "Email and password are required."
+                message: "Email and password are required.",
             });
         }
 
-        const [users] = await db.promise().query(
-            "SELECT * FROM users WHERE email = ?",
+        const [users] = await db.query(
+            "SELECT * FROM users WHERE email = ? LIMIT 1",
             [email]
         );
 
         if (users.length === 0) {
             return res.status(401).json({
-                message: "Invalid email or password."
+                message: "Invalid email or password.",
             });
         }
 
         const user = users[0];
-
-        const passwordMatch = await bcrypt.compare(
+        const passwordMatches = await bcrypt.compare(
             password,
             user.password
         );
 
-        if (!passwordMatch) {
+        if (!passwordMatches) {
             return res.status(401).json({
-                message: "Invalid email or password."
+                message: "Invalid email or password.",
             });
         }
 
         if (Number(user.email_verified) !== 1) {
             return res.status(403).json({
-                message: "Please verify your email before logging in."
+                message: "Please verify your email before logging in.",
+                requires_verification: true,
+                email: user.email,
             });
         }
 
-        if (user.status !== "active") {
+        if (
+            user.status &&
+            String(user.status).toLowerCase() !== "active"
+        ) {
             return res.status(403).json({
-                message: "Account is inactive."
+                message: "Your account is inactive. Please contact support.",
+            });
+        }
+
+        if (!process.env.JWT_SECRET) {
+            console.error("JWT_SECRET is missing.");
+
+            return res.status(500).json({
+                message: "Server authentication configuration is missing.",
             });
         }
 
@@ -348,112 +399,85 @@ router.post("/login", async (req, res) => {
             {
                 id: user.id,
                 email: user.email,
-                role: user.role
+                role: user.role,
             },
             process.env.JWT_SECRET,
-            {
-                expiresIn: "1h"
-            }
+            { expiresIn: "1d" }
         );
 
-        return res.json({
-            message: "Login successful!",
-            token: token,
-            user: {
-                id: user.id,
-                full_name: user.full_name,
-                email: user.email,
-                role: user.role
-            }
+        const safeUser = {
+            id: user.id,
+            full_name: user.full_name,
+            email: user.email,
+            role: user.role,
+            status: user.status,
+            email_verified: user.email_verified,
+        };
+
+        return res.status(200).json({
+            message: "Login successful.",
+            token,
+            user: safeUser,
         });
     } catch (error) {
         console.error("Login error:", error);
 
         return res.status(500).json({
-            message: "Server error."
+            message: "Login failed. Please try again.",
         });
     }
 });
 
 // ========================================
-// TEST ROUTE
+// PROFILE
 // ========================================
-router.get("/test", (req, res) => {
-    res.json({
-        message: "Auth route is working!"
-    });
-});
 
-// ========================================
-// PROTECTED PROFILE
-// ========================================
 router.get("/profile", authenticateToken, async (req, res) => {
     try {
-        const [users] = await db.promise().query(
-            `SELECT id, full_name, email, role, status
+        const userId = req.user.id || req.user.userId;
+
+        const [users] = await db.query(
+            `SELECT id, full_name, email, role, status, email_verified
              FROM users
-             WHERE id = ?`,
-            [req.user.id]
+             WHERE id = ?
+             LIMIT 1`,
+            [userId]
         );
 
         if (users.length === 0) {
             return res.status(404).json({
-                message: "User not found."
+                message: "User not found.",
             });
         }
 
-        return res.json({
-            message: "Profile retrieved successfully!",
-            user: users[0]
-        });
+        return res.status(200).json({ user: users[0] });
     } catch (error) {
         console.error("Profile error:", error);
 
         return res.status(500).json({
-            message: "Server error."
+            message: "Could not retrieve profile.",
         });
     }
 });
 
 // ========================================
-// RBAC TEST ROUTE - ADMIN ONLY
+// ROLE TEST ROUTES
 // ========================================
-router.get(
-    "/admin-test",
-    authenticateToken,
-    authorizeRoles("admin"),
-    (req, res) => {
-        res.json({
-            message: "Admin access granted!"
-        });
-    }
-);
 
-// ========================================
-// RBAC TEST ROUTE - IT STAFF ONLY
-// ========================================
-router.get(
-    "/staff-test",
-    authenticateToken,
-    authorizeRoles("it_staff"),
-    (req, res) => {
-        res.json({
-            message: "IT Staff access granted!"
-        });
-    }
-);
+router.get("/test", (req, res) => {
+    res.json({ message: "Auth routes are working." });
+});
 
-// ========================================
-// RBAC TEST ROUTE - USER ONLY
-// ========================================
-router.get(
-    "/user-test",
-    authenticateToken,
-    authorizeRoles("user"),
-    (req, res) => {
-        res.json({
-            message: "User access granted!"
-        });
-    }
-);
+router.get("/admin-test", authenticateToken, authorizeRoles("admin"), (req, res) => {
+    res.json({ message: "Admin access granted." });
+});
+
+router.get("/staff-test", authenticateToken, authorizeRoles("it_staff"), (req, res) => {
+    res.json({ message: "IT staff access granted." });
+});
+
+router.get("/user-test", authenticateToken, authorizeRoles("user"), (req, res) => {
+    res.json({ message: "User access granted." });
+});
+
 module.exports = router;

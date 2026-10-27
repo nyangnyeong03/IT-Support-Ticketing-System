@@ -1250,3 +1250,127 @@ select:focus-visible {
         transition: none;
     }
 }
+/* =========================================
+   FaultLiNE — EMAIL OTP POPUP
+   DARK BLUE TECH THEME
+========================================= */
+
+.otp-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(2, 8, 20, 0.82);
+    backdrop-filter: blur(9px);
+}
+
+.otp-modal {
+    position: relative;
+    width: min(100%, 430px);
+    padding: 36px 30px;
+    border: 1px solid rgba(34, 211, 238, 0.35);
+    border-radius: 22px;
+    background: linear-gradient(145deg, #10243d, #071422);
+    color: #e7f2ff;
+    box-shadow: 0 0 55px rgba(8, 145, 178, 0.2);
+    text-align: center;
+}
+
+.otp-modal h2 {
+    margin: 12px 0 8px;
+    color: #ffffff;
+    font-size: 25px;
+}
+
+.otp-modal p {
+    line-height: 1.6;
+    color: #b7c9dd;
+    overflow-wrap: anywhere;
+}
+
+.otp-modal strong {
+    color: #67e8f9;
+}
+
+.otp-shield {
+    display: grid;
+    place-items: center;
+    width: 58px;
+    height: 58px;
+    margin: auto;
+    border-radius: 17px;
+    background: rgba(34, 211, 238, 0.12);
+    color: #22d3ee;
+    font-size: 30px;
+}
+
+.otp-close {
+    position: absolute;
+    right: 16px;
+    top: 12px;
+    border: 0;
+    background: none;
+    color: #b7c9dd;
+    font-size: 28px;
+    cursor: pointer;
+}
+
+.otp-input {
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 12px;
+    padding: 15px;
+    border: 1px solid #24516d;
+    border-radius: 12px;
+    background: #061322;
+    color: white;
+    text-align: center;
+    letter-spacing: 0.5em;
+    font-size: 28px;
+    font-weight: 700;
+    outline: none;
+}
+
+.otp-input:focus {
+    border-color: #22d3ee;
+    box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12);
+}
+
+.otp-modal .otp-timer {
+    margin: 10px 0 18px;
+    font-size: 13px;
+}
+
+.otp-verify {
+    width: 100%;
+    padding: 14px;
+    border: 0;
+    border-radius: 12px;
+    background: linear-gradient(90deg, #0891b2, #22d3ee);
+    color: #04131e;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.otp-verify:disabled,
+.otp-resend:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.otp-modal .otp-feedback {
+    font-size: 13px;
+    color: #a5e8f5;
+}
+
+.otp-resend {
+    margin-top: 12px;
+    border: 0;
+    background: transparent;
+    color: #67e8f9;
+    font-weight: 700;
+    cursor: pointer;
+}
