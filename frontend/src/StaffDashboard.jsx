@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import "./StaffDashboard.css";
 
@@ -428,8 +427,54 @@ const getPageTitle = () => {
             return "FaultLiNE Management System";
     }
 };
+    const completionCount = resolvedCount + closedCount;
+    const completionPercent = tickets.length
+        ? Math.round((completionCount / tickets.length) * 100)
+        : 0;
+
     const renderDashboard = () => (
         <>
+            <section className="staff-hero">
+                <div className="staff-hero-copy">
+                    <span className="staff-hero-eyebrow"><span className="staff-pulse-dot" /> FAULTLINE / {isAdmin ? "ADMIN CONTROL CENTER" : "IT SUPPORT WORKSPACE"}</span>
+                    <h2>{isAdmin ? "Your system. One clear view." : "Support starts here."}</h2>
+                    <p>{isAdmin
+                        ? "Monitor support activity, oversee accounts, and keep every request moving."
+                        : "Stay on top of incoming tickets, manage assignments, and help resolve issues faster."}</p>
+                    <div className="staff-hero-actions">
+                        <button type="button" className="staff-hero-primary" onClick={() => { setSelectedTicket(null); setActivePage("tickets"); loadTickets(); }}>
+                            Manage Tickets <span aria-hidden="true">↗</span>
+                        </button>
+                        {isAdmin && <button type="button" className="staff-hero-secondary" onClick={() => { setActivePage("users"); loadUsers(); }}>Manage Users</button>}
+                    </div>
+                </div>
+                <div className="staff-hero-visual" aria-hidden="true">
+                    <div className="staff-hero-orbit staff-hero-orbit-outer" />
+                    <div className="staff-hero-orbit staff-hero-orbit-inner" />
+                    <div className="staff-hero-core">FL<span>●</span></div>
+                </div>
+            </section>
+            <div className="staff-section-intro">
+                <div>
+                    <span className="staff-overline">LIVE OVERVIEW</span>
+                    <h2>{isAdmin ? "System performance" : "Ticket activity"}</h2>
+                    <p>Up-to-date figures from your support workspace.</p>
+                </div>
+                <span className="staff-live-label"><span className="staff-pulse-dot" /> LIVE DATA</span>
+            </div>
+            <section className="staff-progress-panel" aria-label="Ticket resolution progress">
+                <div className="staff-progress-icon" aria-hidden="true">◎</div>
+                <div className="staff-progress-content">
+                    <div className="staff-progress-heading">
+                        <strong>Resolution progress</strong>
+                        <span>{completionPercent}%</span>
+                    </div>
+                    <p>{tickets.length ? `${completionCount} of ${tickets.length} tickets resolved or closed` : "No tickets yet — progress will appear here."}</p>
+                    <div className="staff-progress-track" role="progressbar" aria-label="Resolved or closed tickets" aria-valuemin={0} aria-valuemax={100} aria-valuenow={completionPercent}>
+                        <div className="staff-progress-fill" style={{ width: `${completionPercent}%` }} />
+                    </div>
+                </div>
+            </section>
             {isAdmin && (
                 <section className="staff-card">
                     <div className="staff-card-header">
